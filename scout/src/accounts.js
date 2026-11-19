@@ -6,7 +6,9 @@
 
 const TIKTOK_AUTH = "https://www.tiktok.com/v2/auth/authorize/";
 const TIKTOK_TOKEN = "https://open.tiktokapis.com/v2/oauth/token/";
-const SCOPES = "user.info.basic,video.upload,video.publish";
+// Drafts to your TikTok inbox only need video.upload. Set the Worker variable TIKTOK_DIRECT_POST=1
+// (after turning on Direct Post in the TikTok portal) to also ask for video.publish.
+const scopesFor = (env) => (env.TIKTOK_DIRECT_POST === "1" ? "user.info.basic,video.upload,video.publish" : "user.info.basic,video.upload");
 
 export async function kvGet(env, key) {
   const row = await env.DB.prepare("SELECT value FROM kv WHERE key = ?").bind(key).first();
@@ -80,7 +82,7 @@ export async function tiktokLogin(request, env) {
   const auth = new URL(TIKTOK_AUTH);
   auth.search = new URLSearchParams({
     client_key: env.TIKTOK_CLIENT_KEY,
-    scope: SCOPES,
+    scope: scopesFor(env),
     response_type: "code",
     redirect_uri: `${url.origin}/tiktok/callback`,
     state,
@@ -118,6 +120,6 @@ export async function tiktokCallback(request, env) {
   return page(
     "TikTok connected",
     `<h1 class="ok">✅ TikTok is connected</h1><p>The Poster can now post to your TikTok. You can close this page.</p>
-     <p>Scopes: <code>${data.scope || SCOPES}</code></p>`,
+     <p>Scopes: <code>${data.scope || scopesFor(env)}</code></p>`,
   );
 }

@@ -340,7 +340,7 @@ test("TikTok login: needs key, redirects, callback saves token for the Poster", 
   assert.equal(go.status, 302);
   const auth = new URL(go.headers.get("Location"));
   assert.equal(auth.searchParams.get("redirect_uri"), "https://s.dev/tiktok/callback");
-  assert.equal(auth.searchParams.get("scope"), "user.info.basic,video.upload,video.publish");
+  assert.equal(auth.searchParams.get("scope"), "user.info.basic,video.upload");
   const state = auth.searchParams.get("state");
 
   const real = globalThis.fetch;
