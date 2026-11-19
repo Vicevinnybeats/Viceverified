@@ -27,8 +27,14 @@ python -m unittest discover -s tests      # run tests
 | `poster/google.py` | Google login + Drive |
 | `.github/workflows/poster.yml` | The 2-hour schedule |
 
+## Daily Scout ✅
+
+A free Cloudflare Worker running Qwen 3.8. Twice a day it finds new GTA 6 news and the
+most-watched stream clips, scores them, and keeps a list in D1. Every morning it saves
+`reports/scout/YYYY-MM-DD.md` to this repo.
+
+👉 **Setup guide: [SCOUT.md](SCOUT.md)** · code in `scout/` · tests: `cd scout && node --test`
+
 ## Coming next
 
-- **Daily Scout:** a Cloudflare Worker running Qwen that finds new GTA 6 news and top clips and
-  keeps a list in D1
-- **Clipper / news-Short maker:** builds the videos that go into the Inbox
+- **Clipper / news-Short maker:** turns Scout finds into vertical videos and drops them in the Inbox

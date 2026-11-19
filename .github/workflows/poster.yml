@@ -47,7 +47,7 @@ jobs:
           YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'public' }}
           TIKTOK_MODE: ${{ vars.TIKTOK_MODE || 'direct' }}
           POSTER_PLATFORMS: ${{ vars.POSTER_PLATFORMS || 'youtube,instagram,tiktok' }}
-          QWEN_MODEL: ${{ vars.QWEN_MODEL || '@cf/qwen/qwen3-30b-a3b-fp8' }}
+          QWEN_MODEL: ${{ vars.QWEN_MODEL || '@cf/qwen/qwen3.8-27b' }}
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             python -m poster inbox --dry-run

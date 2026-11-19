@@ -98,7 +98,7 @@ R2 for a few minutes and then deletes it. R2's free tier is 10 GB.
 1. Your Cloudflare **Account ID** is on the right side of the dashboard home. Save it as `CF_ACCOUNT_ID`.
    This is also used for R2.
 2. Go to **My Profile → API Tokens → Create Token → "Workers AI" template**. Save the token as `CF_API_TOKEN`.
-3. The default model is `@cf/qwen/qwen3-30b-a3b-fp8`. To use a different Qwen model, add a
+3. The default model is `@cf/qwen/qwen3.8-27b`. To use a different Qwen model, add a
    repository **variable** (not a secret) named `QWEN_MODEL`.
 
 ## Step 5: TikTok, about 20 minutes plus waiting for approval

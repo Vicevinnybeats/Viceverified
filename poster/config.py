@@ -59,7 +59,7 @@ class Config:
     # Qwen on Cloudflare Workers AI (writes titles/captions/hashtags)
     cf_account_id: str = ""
     cf_api_token: str = ""
-    qwen_model: str = "@cf/qwen/qwen3-30b-a3b-fp8"
+    qwen_model: str = "@cf/qwen/qwen3.8-27b"
 
     platforms: list[str] = field(default_factory=lambda: list(ALL_PLATFORMS))
     max_per_run: int = 3
@@ -91,7 +91,7 @@ class Config:
             tiktok_privacy=_env("TIKTOK_PRIVACY", "PUBLIC_TO_EVERYONE"),
             cf_account_id=_env("CF_ACCOUNT_ID"),
             cf_api_token=_env("CF_API_TOKEN"),
-            qwen_model=_env("QWEN_MODEL", "@cf/qwen/qwen3-30b-a3b-fp8"),
+            qwen_model=_env("QWEN_MODEL", "@cf/qwen/qwen3.8-27b"),
             platforms=[p for p in platforms if p in ALL_PLATFORMS],
             max_per_run=int(_env("POSTER_MAX_PER_RUN", "3") or 3),
             max_attempts=int(_env("POSTER_MAX_ATTEMPTS", "3") or 3),

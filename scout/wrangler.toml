@@ -1,0 +1,29 @@
+name = "viceverified-scout"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+# 06:13 UTC = collect + daily report, 18:13 UTC = collect only
+[triggers]
+crons = ["13 6 * * *", "13 18 * * *"]
+
+# Qwen on Workers AI (free daily allowance, no API key needed inside the Worker)
+[ai]
+binding = "AI"
+
+# The Scout's memory (already created on your Cloudflare account)
+[[d1_databases]]
+binding = "DB"
+database_name = "viceverified-scout"
+database_id = "0400a3d7-ab5c-4538-851b-67792889650d"
+
+[vars]
+QWEN_MODEL = "@cf/qwen/qwen3.8-27b"
+GITHUB_REPO = "vicevinnybeats/viceverified"
+AI_MAX_ITEMS = "30"
+
+[observability]
+enabled = true
+
+# Secrets (set automatically by the GitHub deploy workflow - never put them here):
+#   GITHUB_TOKEN, SCOUT_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, YOUTUBE_API_KEY,
+#   DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
