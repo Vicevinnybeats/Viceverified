@@ -26,7 +26,8 @@ jobs:
       - name: Install wrangler
         run: npm install --no-audit --no-fund
       - name: Deploy Worker
-        run: npx wrangler deploy
+        # a brand-new Worker can take a few seconds to register; retry once
+        run: npx wrangler deploy || (sleep 20 && npx wrangler deploy)
       - name: Copy secrets into the Worker (only the ones you filled in)
         env:
           GITHUB_TOKEN: ${{ secrets.SCOUT_GITHUB_TOKEN }}
