@@ -380,6 +380,8 @@ test("serves site-verification files saved in the kv table", async () => {
   DB.kv.set("verify:tiktokABC123.txt", "tiktok-developers-site-verification=ABC123");
   const ok = await worker.fetch(new Request("https://s.dev/tiktokABC123.txt"), { DB });
   assert.equal(await ok.text(), "tiktok-developers-site-verification=ABC123");
+  const head = await worker.fetch(new Request("https://s.dev/tiktokABC123.txt", { method: "HEAD" }), { DB });
+  assert.equal(head.status, 200);
   const missing = await worker.fetch(new Request("https://s.dev/nothere.txt"), { DB, DB_: 1 });
   assert.equal(missing.status, 404);
 });

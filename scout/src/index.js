@@ -146,9 +146,13 @@ export default {
       // Browser-friendly "run now": /run?key=YOUR_SCOUT_KEY
       // Site-verification files (TikTok "Verify URL properties", Meta, Google): stored in D1 kv as verify:<file>
       const verifyMatch = url.pathname.match(/^\/([A-Za-z0-9_.-]{3,80}\.(?:txt|html))$/);
-      if (request.method === "GET" && verifyMatch) {
+      if ((request.method === "GET" || request.method === "HEAD") && verifyMatch) {
         const body = await kvGet(env, `verify:${verifyMatch[1]}`);
-        if (body !== null) return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+        if (body !== null) {
+          return new Response(request.method === "HEAD" ? null : body, {
+            headers: { "Content-Type": "text/plain; charset=utf-8", "Content-Length": String(new TextEncoder().encode(body).length) },
+          });
+        }
       }
       if (request.method === "GET" && url.pathname === "/terms") return termsPage();
       if (request.method === "GET" && url.pathname === "/privacy") return privacyPage();
