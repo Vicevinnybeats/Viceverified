@@ -65,3 +65,29 @@ def speak(cfg: Config, scout, text: str, dest: str, log=print) -> tuple[str, str
     with open(dest, "wb") as f:
         f.write(scout.tts(text))
     return dest, "Cloudflare Aura (backup)"
+
+
+def setup_voicestudio(cfg: Config, log=print) -> None:
+    """Installs the voice model (KittenTTS by default) and records the licence acknowledgement
+    for exactly that model - only when VOICESTUDIO_ACCEPT_LICENSE names it."""
+    base, h = cfg.voicestudio_url, _h(cfg)
+    repo = cfg.voicestudio_install
+    if not repo:
+        return
+    r = requests.post(f"{base}/models/install", json={"repo_id": repo, "target": "local"}, headers=h, timeout=1800)
+    log(f"install {repo}: HTTP {r.status_code} {r.text[:200]}")
+    deadline = time.time() + 1200
+    while time.time() < deadline:
+        s = requests.get(f"{base}/models/install/status", headers=h, timeout=30)
+        jobs = s.json().get("jobs", []) if s.ok else []
+        if not any(j.get("repo_id") == repo for j in jobs):
+            break
+        time.sleep(5)
+    if cfg.voicestudio_accept and cfg.voicestudio_accept == repo:
+        d = requests.get(f"{base}/models/licenses/acceptance/{repo}", headers=h, timeout=30)
+        info = d.json() if d.ok else {}
+        log(f"licence for {repo}: {info.get('license')} - state {info.get('state')}")
+        if info.get("fingerprint") and info.get("state") not in ("accepted", "not_required"):
+            a = requests.post(f"{base}/models/licenses/accept", headers=h, timeout=30,
+                              json={"repo_id": repo, "fingerprint": info["fingerprint"], "accepted": True})
+            log(f"accepted licence acknowledgement for {repo}: HTTP {a.status_code} {a.text[:200]}")

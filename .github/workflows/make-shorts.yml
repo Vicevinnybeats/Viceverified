@@ -116,10 +116,15 @@ jobs:
           done
           docker logs --tail 80 omnivoice || true
           exit 1
+      - name: Install the KittenTTS voice (Apache-2.0) in VoiceStudio
+        env:
+          VOICESTUDIO_INSTALL: ${{ vars.VOICESTUDIO_INSTALL || 'KittenML/kitten-tts-mini-0.8' }}
+          VOICESTUDIO_ACCEPT_LICENSE: ${{ vars.VOICESTUDIO_ACCEPT_LICENSE || 'KittenML/kitten-tts-mini-0.8' }}
+        run: python -m maker voice-setup
       - name: Record voiceovers
         env:
-          VOICESTUDIO_MODEL: ${{ vars.VOICESTUDIO_MODEL || 'tts-1' }}
-          VOICESTUDIO_VOICE: ${{ vars.VOICESTUDIO_VOICE || 'alloy' }}
+          VOICESTUDIO_MODEL: ${{ vars.VOICESTUDIO_MODEL || 'kittentts' }}
+          VOICESTUDIO_VOICE: ${{ vars.VOICESTUDIO_VOICE || 'expr-voice-3-m' }}
         run: python -m maker voices plan.json voices
       - name: VoiceStudio log (for troubleshooting)
         if: always()

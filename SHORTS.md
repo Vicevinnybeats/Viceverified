@@ -21,28 +21,32 @@ uploads a day. To change this, add repository **variables** `NEWS_PER_RUN` and `
 
 ---
 
-## 🎙️ Voice: VoiceStudio
+## 🎙️ Voice: VoiceStudio with KittenTTS
 
 The workflow starts [VoiceStudio](https://github.com/debpalash/VoiceStudio) (Docker, CPU) on the
-GitHub machine. Its voice model (~2.4 GB) downloads on the first run and is cached after that.
-If VoiceStudio isn't ready, Cloudflare's free **Aura** voice is used for that Short. The run summary
-shows which voice each Short got.
+GitHub machine and installs the **KittenTTS** voice model. It's an 80 MB model that runs in real
+time on a normal CPU, and its licence is **Apache-2.0**, which allows commercial use.
+
+- VoiceStudio asks for a one-time licence acknowledgement before any model is used. The workflow
+  gives it **for KittenTTS only** (`VOICESTUDIO_ACCEPT_LICENSE`). It never accepts other models.
+- **Not used:** VoiceStudio's default model, OmniVoice. Its weights are **non-commercial
+  (CC-BY-NC)**, so they're not OK for monetised channels.
+- If VoiceStudio fails, Cloudflare's **Aura** voice is used for that Short. The run summary shows
+  which voice each Short got.
 
 Optional settings (repository **Variables**, not secrets):
 
 | Variable | What | Default |
 |---|---|---|
-| `VOICESTUDIO_VOICE` | voice name or id (`alloy`, `ash`, `coral`… or a voice profile you made) | `alloy` |
-| `VOICESTUDIO_MODEL` | engine id (`omnivoice`, or a light CPU engine you installed) | `tts-1` (active engine) |
+| `VOICESTUDIO_VOICE` | KittenTTS voice: `expr-voice-2-m`, `-2-f`, `-3-m`, `-3-f`, `-4-m`, `-4-f`, `-5-m`, `-5-f` (m = male, f = female) | `expr-voice-3-m` |
 | `USE_VOICESTUDIO` | `false` = skip VoiceStudio and always use the Cloudflare voice | on |
 
-**Your own or cloned voice:** run VoiceStudio on your PC, make the voice profile there, and expose it
-over the internet (for example with a Cloudflare Tunnel). Then add the secrets `VOICESTUDIO_URL`
-(e.g. `https://voice.yourdomain.com`) and `VOICESTUDIO_KEY` (its `OMNIVOICE_API_KEY`), and set
-`VOICESTUDIO_VOICE` to your profile's name. Only clone voices you have permission to use.
-
-> VoiceStudio is AGPL-3.0. Each voice model has its own licence, shown in VoiceStudio's Model
-> Manager. Check it allows monetised videos before you use it.
+**Your own or cloned voice:** run VoiceStudio on your PC, make the voice profile there (accept the
+licences yourself in its app), and expose it over the internet (for example with a Cloudflare
+Tunnel). Then add the secrets `VOICESTUDIO_URL` and `VOICESTUDIO_KEY` (its `OMNIVOICE_API_KEY`),
+and set the variables `VOICESTUDIO_MODEL` (engine) and `VOICESTUDIO_VOICE` (your profile name).
+Only clone voices you have permission to use, and check that the engine's licence allows
+monetised videos.
 
 ## 🎮 Your own gameplay as background (optional, recommended)
 Make a folder **Viceverified/Broll** in Google Drive and drop some of your own GTA 6 gameplay

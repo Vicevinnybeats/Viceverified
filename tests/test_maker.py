@@ -223,5 +223,67 @@ class SplitModeTests(unittest.TestCase):
         self.assertEqual(results[0]["voice"], "Cloudflare Aura (backup)")
 
 
+
+class ClipFallbackTests(unittest.TestCase):
+    def test_next_clip_is_used_when_one_is_unsafe(self):
+        planned = {"news": [], "clips_wanted": 1, "clips": [
+            {"item": {"id": "c1", "title": "unsafe", "url": "u1"}},
+            {"item": {"id": "c2", "title": "good", "url": "u2"}},
+            {"item": {"id": "c3", "title": "extra", "url": "u3"}}]}
+        made = []
+
+        def fake_clip(cfg, scout, outbox, item, log):
+            made.append(item["id"])
+            return {"status": "skipped (not safe for Shorts)"} if item["id"] == "c1" else {"status": "made"}
+
+        with mock.patch("maker.pipeline.Scout"), mock.patch("maker.pipeline.Outbox"), \
+                mock.patch("maker.pipeline.make_clip", side_effect=fake_clip):
+            results = pipeline.render_plan(Config(), planned, "nowhere", log=lambda *_: None)
+        self.assertEqual(made, ["c1", "c2"])
+        self.assertEqual([r["status"] for r in results], ["skipped (not safe for Shorts)", "made"])
+
+
+class VoiceSetupTests(unittest.TestCase):
+    def test_installs_kitten_and_accepts_only_that_licence(self):
+        cfg = Config(voicestudio_url="http://vs", voicestudio_key="k")
+        calls = []
+
+        def post(url, json=None, headers=None, timeout=None):
+            calls.append(("POST", url, json))
+            return mock.Mock(ok=True, status_code=200, text="ok")
+
+        def get(url, headers=None, timeout=None):
+            calls.append(("GET", url, None))
+            if url.endswith("/models/install/status"):
+                return mock.Mock(ok=True, json=lambda: {"jobs": []})
+            return mock.Mock(ok=True, json=lambda: {"license": "apache-2.0", "state": "not_accepted",
+                                                      "fingerprint": "v2:" + "a" * 64})
+
+        with mock.patch("maker.voice.requests.post", side_effect=post), \
+                mock.patch("maker.voice.requests.get", side_effect=get):
+            voice.setup_voicestudio(cfg, log=lambda *_: None)
+        self.assertEqual(calls[0], ("POST", "http://vs/models/install",
+                                    {"repo_id": "KittenML/kitten-tts-mini-0.8", "target": "local"}))
+        accept = [c for c in calls if c[1].endswith("/models/licenses/accept")]
+        self.assertEqual(accept[0][2], {"repo_id": "KittenML/kitten-tts-mini-0.8",
+                                        "fingerprint": "v2:" + "a" * 64, "accepted": True})
+
+    def test_never_accepts_other_models(self):
+        cfg = Config(voicestudio_url="http://vs", voicestudio_install="k2-fsa/OmniVoice",
+                     voicestudio_accept="KittenML/kitten-tts-mini-0.8")
+        with mock.patch("maker.voice.requests.post", return_value=mock.Mock(ok=True, status_code=200, text="")) as post, \
+                mock.patch("maker.voice.requests.get", return_value=mock.Mock(ok=True, json=lambda: {"jobs": []})):
+            voice.setup_voicestudio(cfg, log=lambda *_: None)
+        self.assertFalse(any("licenses/accept" in c.args[0] for c in post.call_args_list))
+
+    def test_speech_request_uses_kittentts(self):
+        cfg = Config(voicestudio_url="http://vs")
+        ok = mock.Mock(ok=True, content=b"x", headers={"Content-Type": "audio/mpeg"})
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("maker.voice.requests.post", return_value=ok) as post:
+            voice.voicestudio(cfg, "hi", os.path.join(tmp, "a.mp3"))
+        body = post.call_args.kwargs["json"]
+        self.assertEqual((body["model"], body["voice"]), ("kittentts", "expr-voice-3-m"))
+
+
 if __name__ == "__main__":
     unittest.main()

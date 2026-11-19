@@ -16,8 +16,12 @@ class Config:
     # VoiceStudio (main voice). Empty URL = use the Cloudflare backup voice only.
     voicestudio_url: str = ""
     voicestudio_key: str = ""
-    voicestudio_model: str = "tts-1"
-    voicestudio_voice: str = "alloy"
+    # KittenTTS: Apache-2.0 licence, 80 MB, real-time on a normal CPU, 8 English voices
+    # (expr-voice-2..5, -m male / -f female)
+    voicestudio_model: str = "kittentts"
+    voicestudio_voice: str = "expr-voice-3-m"
+    voicestudio_install: str = "KittenML/kitten-tts-mini-0.8"
+    voicestudio_accept: str = "KittenML/kitten-tts-mini-0.8"
     voice_speed: float = 1.08
 
     news_per_run: int = 1
@@ -38,8 +42,10 @@ class Config:
             scout_key=_env("SCOUT_KEY"),
             voicestudio_url=_env("VOICESTUDIO_URL").rstrip("/"),
             voicestudio_key=_env("VOICESTUDIO_KEY") or _env("OMNIVOICE_API_KEY"),
-            voicestudio_model=_env("VOICESTUDIO_MODEL", "tts-1"),
-            voicestudio_voice=_env("VOICESTUDIO_VOICE", "alloy"),
+            voicestudio_model=_env("VOICESTUDIO_MODEL", "kittentts"),
+            voicestudio_voice=_env("VOICESTUDIO_VOICE", "expr-voice-3-m"),
+            voicestudio_install=_env("VOICESTUDIO_INSTALL", "KittenML/kitten-tts-mini-0.8"),
+            voicestudio_accept=_env("VOICESTUDIO_ACCEPT_LICENSE", "KittenML/kitten-tts-mini-0.8"),
             voice_speed=float(_env("VOICE_SPEED", "1.08")),
             news_per_run=int(_env("NEWS_PER_RUN", "1")),
             clips_per_run=int(_env("CLIPS_PER_RUN", "1")),

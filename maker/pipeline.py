@@ -197,9 +197,13 @@ def run(cfg: Config, log=print, dry_run: bool = False) -> list[dict]:
 
 def plan(cfg: Config, log=print) -> dict:
     scout = Scout(cfg)
-    news, clips = pick(scout.items(), cfg)
-    log(f"Picked {len(news)} news + {len(clips)} clips from the Scout.")
-    planned = {"news": [], "clips": [{"item": c} for c in clips]}
+    items = scout.items()
+    news, _ = pick(items, cfg)
+    # extra clip candidates: if one is skipped as not safe, the next one is used
+    wide = Config(**{**cfg.__dict__, "clips_per_run": cfg.clips_per_run * 3})
+    _, clips = pick(items, wide)
+    log(f"Picked {len(news)} news + {len(clips)} clip candidates from the Scout.")
+    planned = {"news": [], "clips": [{"item": c} for c in clips], "clips_wanted": cfg.clips_per_run}
     for item in news:
         try:
             script = news_script(scout, item)
@@ -236,7 +240,11 @@ def render_plan(cfg: Config, planned: dict, voices_dir: str, log=print) -> list[
     results = []
     jobs = [("news", e["item"], e) for e in planned.get("news", [])] + \
            [("clip", e["item"], e) for e in planned.get("clips", [])]
+    clips_wanted = planned.get("clips_wanted", len(planned.get("clips", [])))
+    clips_made = 0
     for kind, item, entry in jobs:
+        if kind == "clip" and clips_made >= clips_wanted:
+            break
         log(f"\n▶ {kind}: {item['title']}")
         try:
             if kind == "news":
@@ -248,5 +256,7 @@ def render_plan(cfg: Config, planned: dict, voices_dir: str, log=print) -> list[
             res = {"status": f"failed: {str(exc)[:400]}"}
         res.update({"kind": kind, "title": item["title"], "url": item["url"]})
         log(f"  → {res['status']}")
+        if kind == "clip" and res["status"] == "made":
+            clips_made += 1
         results.append(res)
     return results

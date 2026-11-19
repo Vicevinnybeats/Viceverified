@@ -45,6 +45,7 @@ def main(argv=None) -> int:
     r.add_argument("--news", type=int)
     r.add_argument("--clips", type=int)
     sub.add_parser("voice-test")
+    sub.add_parser("voice-setup")
     pl = sub.add_parser("plan")
     pl.add_argument("plan_file")
     vo = sub.add_parser("voices")
@@ -61,6 +62,13 @@ def main(argv=None) -> int:
         dest = os.path.join(cfg.out_dir, "voice-test.mp3")
         path, used = voice.speak(cfg, Scout(cfg), "GTA 6 is finally here, and the Viceverified voice test works.", dest)
         print(f"Saved {path} using {used}")
+        return 0
+
+    if args.cmd == "voice-setup":
+        if not voice.voicestudio_ready(cfg, wait_seconds=30):
+            print("VoiceStudio is not reachable.")
+            return 1
+        voice.setup_voicestudio(cfg)
         return 0
 
     if args.cmd == "voices":
