@@ -3,11 +3,17 @@
   python -m maker run              make today's Shorts from the Scout's best finds
   python -m maker run --dry-run    only show what it would make
   python -m maker voice-test       check VoiceStudio and save out/voice-test.mp3
+
+GitHub Actions uses three steps so a VoiceStudio crash never stops the Shorts:
+  python -m maker plan plan.json             pick finds + Qwen scripts
+  python -m maker voices plan.json voices/   VoiceStudio voiceovers
+  python -m maker render plan.json voices/   build the videos (backup voice if one is missing)
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -39,6 +45,14 @@ def main(argv=None) -> int:
     r.add_argument("--news", type=int)
     r.add_argument("--clips", type=int)
     sub.add_parser("voice-test")
+    pl = sub.add_parser("plan")
+    pl.add_argument("plan_file")
+    vo = sub.add_parser("voices")
+    vo.add_argument("plan_file")
+    vo.add_argument("folder")
+    re_ = sub.add_parser("render")
+    re_.add_argument("plan_file")
+    re_.add_argument("folder")
     args = p.parse_args(argv)
     cfg = Config.from_env()
 
@@ -49,9 +63,39 @@ def main(argv=None) -> int:
         print(f"Saved {path} using {used}")
         return 0
 
+    if args.cmd == "voices":
+        with open(args.plan_file, encoding="utf-8") as f:
+            planned = json.load(f)
+        if not planned.get("news"):
+            print("No news Shorts planned - no voiceovers needed.")
+            return 0
+        if not voice.voicestudio_ready(cfg, wait_seconds=30):
+            print("VoiceStudio is not reachable.")
+            return 1
+        made = pipeline.record_voices(cfg, planned, args.folder)
+        print(f"VoiceStudio made {made}/{len(planned['news'])} voiceovers.")
+        return 0 if made else 1
+
     if not cfg.scout_key:
         print("SCOUT_KEY is missing.")
         return 1
+    if args.cmd == "plan":
+        planned = pipeline.plan(cfg)
+        with open(args.plan_file, "w", encoding="utf-8") as f:
+            json.dump(planned, f, indent=2, ensure_ascii=False)
+        print(f"Plan saved: {len(planned['news'])} news, {len(planned['clips'])} clips.")
+        return 0
+    if args.cmd == "render":
+        with open(args.plan_file, encoding="utf-8") as f:
+            planned = json.load(f)
+        results = pipeline.render_plan(cfg, planned, args.folder)
+        md = summary_md(results)
+        print("\n" + md)
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+                f.write(md)
+        failed = [r for r in results if r["status"].startswith("failed")]
+        return 1 if results and len(failed) == len(results) else 0
     if args.news is not None:
         cfg.news_per_run = args.news
     if args.clips is not None:

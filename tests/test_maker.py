@@ -173,5 +173,55 @@ class EndToEndTests(unittest.TestCase):
             self.assertEqual(probe.stdout.strip(), "1080,1920")
 
 
+@unittest.skipUnless(HAS_FFMPEG, "ffmpeg not installed")
+class SplitModeTests(unittest.TestCase):
+    """plan -> voices -> render, as the GitHub workflow runs it."""
+
+    def test_plan_voices_render(self):
+        items = [{"id": "n1", "kind": "news", "score": 80, "new_info": 1, "title": "Cast", "author": "IGN", "url": "https://i/x"},
+                 {"id": "n2", "kind": "news", "score": 79, "new_info": 1, "title": "Bad", "author": "IGN", "url": "https://i/y"}]
+        scout = FakeScout()
+        scout.items = lambda: items
+        real_write = scout.write
+        scout.write = lambda payload: {"safe": False} if payload["title"] == "Bad" else real_write(payload)
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Config(news_per_run=2, clips_per_run=0, out_dir=os.path.join(tmp, "out"), use_article_image=False,
+                         voicestudio_url="http://vs")
+            with mock.patch("maker.pipeline.Scout", return_value=scout), \
+                    mock.patch("maker.sources.fetch_article", return_value=("facts", "")):
+                planned = pipeline.plan(cfg, log=lambda *_: None)
+            self.assertEqual([e["item"]["id"] for e in planned["news"]], ["n1"])
+            self.assertIn(("n2", "skip"), scout.marked)
+            planned = json.loads(json.dumps(planned))  # survives the trip through an artifact
+
+            voices = os.path.join(tmp, "voices")
+            def fake_vs(cfg_, text, dest):
+                return tone(dest, 3)
+            with mock.patch("maker.voice.voicestudio", side_effect=fake_vs):
+                self.assertEqual(pipeline.record_voices(cfg, planned, voices, log=lambda *_: None), 1)
+            self.assertTrue(os.path.exists(os.path.join(voices, "n1.mp3")))
+
+            with mock.patch("maker.pipeline.Scout", return_value=scout), \
+                    mock.patch("maker.pipeline.Outbox") as ob:
+                ob.return_value.deliver.return_value = "GitHub run files"
+                ob.return_value.broll.return_value = None
+                results = pipeline.render_plan(cfg, planned, voices, log=lambda *_: None)
+            self.assertEqual(results[0]["status"], "made")
+            self.assertEqual(results[0]["voice"], "VoiceStudio")
+
+    def test_render_without_voices_uses_backup(self):
+        scout = FakeScout()
+        planned = {"news": [{"item": {"id": "n9", "title": "T", "author": "VGC", "url": "u"},
+                             "script": {"hook": "h", "voiceover": "Hello there.", "title": "T", "safe": True}}],
+                   "clips": []}
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Config(out_dir=os.path.join(tmp, "out"), use_article_image=False)
+            with mock.patch("maker.pipeline.Scout", return_value=scout), mock.patch("maker.pipeline.Outbox") as ob:
+                ob.return_value.deliver.return_value = "GitHub run files"
+                ob.return_value.broll.return_value = None
+                results = pipeline.render_plan(cfg, planned, os.path.join(tmp, "no-voices"), log=lambda *_: None)
+        self.assertEqual(results[0]["voice"], "Cloudflare Aura (backup)")
+
+
 if __name__ == "__main__":
     unittest.main()

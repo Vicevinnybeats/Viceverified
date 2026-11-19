@@ -100,16 +100,28 @@ def _words(scout: Scout, audio: str, text: str, length: float, log) -> list[dict
     return subs.even_timing(text, length)
 
 
-def make_news(cfg: Config, scout: Scout, outbox: Outbox, item: dict, log=print) -> dict:
+def news_script(scout: Scout, item: dict) -> dict:
+    """Reads the article and lets Qwen write the script. Adds the article picture link."""
+    facts, image_url = sources.fetch_article(item["url"])
+    script = scout.write({"kind": "news", "title": item["title"], "author": item.get("author"),
+                          "angle": item.get("angle"), "facts": facts or item["title"]})
+    script["image_url"] = image_url
+    return script
+
+
+def make_news(cfg: Config, scout: Scout, outbox: Outbox, item: dict, log=print,
+              script: dict | None = None, voice_file: str | None = None) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
-        facts, image_url = sources.fetch_article(item["url"])
-        script = scout.write({"kind": "news", "title": item["title"], "author": item.get("author"),
-                              "angle": item.get("angle"), "facts": facts or item["title"]})
+        script = script or news_script(scout, item)
+        image_url = script.get("image_url", "")
         if not script.get("safe", True):
             scout.mark(item["id"], "skip")
             return {"status": "skipped (not safe for Shorts)"}
         text = script.get("voiceover") or item["title"]
-        voice_path, used_voice = voice.speak(cfg, scout, text, os.path.join(tmp, "voice.mp3"), log)
+        if voice_file and os.path.exists(voice_file):
+            voice_path, used_voice = voice_file, "VoiceStudio"
+        else:
+            voice_path, used_voice = voice.speak(cfg, scout, text, os.path.join(tmp, "voice.mp3"), log)
         length = render.duration(voice_path)
         words = _words(scout, render.small_audio(voice_path, os.path.join(tmp, "small.mp3")), text, length, log)
         ass = os.path.join(tmp, "subs.ass")
@@ -177,4 +189,64 @@ def run(cfg: Config, log=print, dry_run: bool = False) -> list[dict]:
             res.update({"kind": kind, "title": item["title"], "url": item["url"]})
             log(f"  → {res['status']}" + (f" ({res.get('where')}, voice: {res.get('voice', '-')})" if res.get("where") else ""))
             results.append(res)
+    return results
+
+
+# ---- split mode for GitHub Actions: plan -> voice -> render ---------------------------------
+# If the VoiceStudio job crashes, the render job still runs and uses the backup voice.
+
+def plan(cfg: Config, log=print) -> dict:
+    scout = Scout(cfg)
+    news, clips = pick(scout.items(), cfg)
+    log(f"Picked {len(news)} news + {len(clips)} clips from the Scout.")
+    planned = {"news": [], "clips": [{"item": c} for c in clips]}
+    for item in news:
+        try:
+            script = news_script(scout, item)
+        except Exception as exc:
+            log(f"  script failed for {item['title']}: {exc}")
+            continue
+        if not script.get("safe", True):
+            scout.mark(item["id"], "skip")
+            log(f"  skipped (not safe): {item['title']}")
+            continue
+        log(f"  script ready: {script.get('hook')}")
+        planned["news"].append({"item": item, "script": script})
+    return planned
+
+
+def record_voices(cfg: Config, planned: dict, folder: str, log=print) -> int:
+    """VoiceStudio reads every news script. Returns how many it made."""
+    os.makedirs(folder, exist_ok=True)
+    made = 0
+    for entry in planned.get("news", []):
+        dest = os.path.join(folder, f"{entry['item']['id']}.mp3")
+        try:
+            voice.voicestudio(cfg, entry["script"].get("voiceover") or entry["item"]["title"], dest)
+            made += 1
+            log(f"  VoiceStudio recorded: {entry['script'].get('hook')}")
+        except Exception as exc:
+            log(f"  VoiceStudio failed for {entry['item']['title']}: {exc}")
+    return made
+
+
+def render_plan(cfg: Config, planned: dict, voices_dir: str, log=print) -> list[dict]:
+    scout = Scout(cfg)
+    outbox = Outbox(cfg, log)
+    results = []
+    jobs = [("news", e["item"], e) for e in planned.get("news", [])] + \
+           [("clip", e["item"], e) for e in planned.get("clips", [])]
+    for kind, item, entry in jobs:
+        log(f"\n▶ {kind}: {item['title']}")
+        try:
+            if kind == "news":
+                res = make_news(cfg, scout, outbox, item, log, script=entry["script"],
+                                voice_file=os.path.join(voices_dir, f"{item['id']}.mp3"))
+            else:
+                res = make_clip(cfg, scout, outbox, item, log)
+        except Exception as exc:
+            res = {"status": f"failed: {str(exc)[:400]}"}
+        res.update({"kind": kind, "title": item["title"], "url": item["url"]})
+        log(f"  → {res['status']}")
+        results.append(res)
     return results
