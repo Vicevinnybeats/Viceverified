@@ -4,7 +4,7 @@ import test from "node:test";
 import { collect, dailyReport, recentItems } from "../src/index.js";
 import { buildPrompt, extractText, parseScores, ruleScore, scoreItems } from "../src/rank.js";
 import { buildReport } from "../src/report.js";
-import { parseReddit, parseRss, parseTwitchClips } from "../src/sources.js";
+import { NEWS_FEEDS, bingNews, parseFeed, parseReddit, parseRss, parseTwitchClips, reddit } from "../src/sources.js";
 import { decode, titleKey } from "../src/util.js";
 
 const RSS = `<rss><channel>
@@ -156,7 +156,9 @@ test("collect stores new finds once and the report goes to GitHub", async () => 
   const github = [];
   globalThis.fetch = async (url, opts = {}) => {
     url = String(url);
-    if (url.includes("news.google.com")) return new Response(RSS);
+    if (url.includes("bing.com")) return new Response("busy", { status: 503 });
+    if (url.includes("kotaku.com")) return new Response("down", { status: 500 });
+    if (Object.values(NEWS_FEEDS).includes(url)) return new Response(RSS);
     if (url.includes("reddit.com")) return new Response("blocked", { status: 403 });
     if (url.includes("api.github.com")) {
       github.push({ url, method: opts.method || "GET", body: opts.body });
@@ -171,8 +173,10 @@ test("collect stores new finds once and the report goes to GitHub", async () => 
     const env = { DB, GITHUB_TOKEN: "t", AI: { run: async () => ({ response: '[{"i":0,"score":90,"angle":"Record launch"}]' }) } };
     const now = new Date("2026-11-19T12:00:00Z");
     const first = await collect(env, now);
-    assert.equal(first.newItems.length, 2); // both Google News queries return the same 2 stories -> de-duplicated
-    assert.match(first.run.errors.reddit, /403/);
+    assert.equal(first.newItems.length, 2); // every site returns the same 2 stories -> de-duplicated
+    assert.match(first.run.errors.reddit, /403.*REDDIT_CLIENT_ID/);
+    assert.match(first.run.errors["bing-news"], /503/);
+    assert.match(first.run.errors["news-sites (some)"], /Kotaku/);
     const again = await collect(env, now);
     assert.equal(again.newItems.length, 0);
 
@@ -203,4 +207,51 @@ test("live page says when the Scout hasn't run, and /run needs the key", async (
 test("report without Twitch tells you to add it", () => {
   const md = buildReport({ day: "d", items: [], run: { twitch: false, sources: [], errors: {} } });
   assert.match(md, /add TWITCH_CLIENT_ID/);
+});
+
+const ATOM = `<feed><entry><title>GTA 6 PC port rumours heat up</title>
+<link rel="alternate" href="https://polygon.com/gta6-pc"/><published>2026-11-19T09:00:00Z</published></entry>
+<entry><title>Best Zelda mods</title><link href="https://polygon.com/zelda"/></entry></feed>`;
+
+test("reads Atom feeds and keeps only GTA stories", () => {
+  const items = parseFeed(ATOM, "Polygon");
+  assert.equal(items.length, 1);
+  assert.equal(items[0].url, "https://polygon.com/gta6-pc");
+  assert.equal(items[0].author, "Polygon");
+  const rss = parseFeed(RSS, "IGN");
+  assert.equal(rss.length, 2);
+  assert.equal(parseFeed("<rss><item><title>Halo news</title><link>https://x</link></item></rss>", "IGN").length, 0);
+});
+
+test("Bing links are unwrapped to the real article", async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => new Response(`<rss><item><title>GTA 6 sales record</title>
+    <link>http://www.bing.com/news/apiclick.aspx?ref=x&amp;url=https%3a%2f%2fign.com%2fgta6-sales&amp;c=1</link>
+    <pubDate>Wed, 19 Nov 2026 10:00:00 GMT</pubDate></item></rss>`);
+  try {
+    const items = await bingNews("GTA 6");
+    assert.equal(items[0].url, "https://ign.com/gta6-sales");
+    assert.equal(items[0].source, "bing-news");
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test("Reddit uses the app login when keys are set", async () => {
+  const real = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (url, opts = {}) => {
+    seen.push([String(url), opts.headers?.Authorization || ""]);
+    if (String(url).includes("access_token")) return Response.json({ access_token: "tok" });
+    return Response.json({ data: { children: [{ data: { title: "Hi", permalink: "/r/GTA6/h", subreddit: "GTA6", created_utc: 1795000000, score: 9 } }] } });
+  };
+  try {
+    const items = await reddit("GTA6", "id", "sec");
+    assert.equal(items.length, 1);
+    assert.match(seen[0][1], /^Basic /);
+    assert.equal(seen[1][0].startsWith("https://oauth.reddit.com/r/GTA6/top"), true);
+    assert.equal(seen[1][1], "Bearer tok");
+  } finally {
+    globalThis.fetch = real;
+  }
 });

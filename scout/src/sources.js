@@ -34,6 +34,86 @@ export async function googleNews(query) {
   return parseRss(await res.text());
 }
 
+// ---------- Gaming news sites' own feeds (work from Cloudflare, unlike Google News) ----------
+export const NEWS_FEEDS = {
+  IGN: "https://feeds.feedburner.com/ign/all",
+  GameSpot: "https://www.gamespot.com/feeds/game-news/",
+  "PC Gamer": "https://www.pcgamer.com/rss/",
+  Eurogamer: "https://www.eurogamer.net/feed",
+  VGC: "https://www.videogameschronicle.com/feed/",
+  Kotaku: "https://kotaku.com/rss",
+  Polygon: "https://www.polygon.com/rss/index.xml",
+  "Push Square": "https://www.pushsquare.com/feeds/latest",
+};
+
+export const GTA_RE = /\bgta\s*(6|vi)\b|grand theft auto\s*(6|vi)\b|\brockstar\b|vice city|leonida|\bgta online\b/i;
+
+function atomLink(block) {
+  const alt = block.match(/<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']/i);
+  const any = block.match(/<link[^>]*href=["']([^"']+)["']/i);
+  return (alt || any)?.[1] || "";
+}
+
+/** Reads RSS or Atom; keeps only GTA 6 stories. */
+export function parseFeed(xml, site, filter = GTA_RE) {
+  const items = [];
+  const blocks = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) || xml.match(/<entry[\s>][\s\S]*?<\/entry>/gi) || [];
+  for (const block of blocks) {
+    const title = tag(block, "title");
+    const summary = (tag(block, "description") || tag(block, "summary")).slice(0, 400);
+    if (!title || (filter && !filter.test(`${title} ${summary}`))) continue;
+    const url = tag(block, "link") || atomLink(block);
+    if (!url.startsWith("http")) continue;
+    items.push({
+      source: "news-sites",
+      kind: "news",
+      title,
+      url,
+      author: site,
+      published_at: iso(tag(block, "pubDate") || tag(block, "published") || tag(block, "updated")),
+      metric: 0,
+      metric_label: "",
+    });
+    if (items.length >= 10) break;
+  }
+  return items;
+}
+
+/** All sites in parallel. Only fails if every site fails. */
+export async function newsSites(feeds = NEWS_FEEDS) {
+  const names = Object.keys(feeds);
+  const results = await Promise.allSettled(
+    names.map(async (name) => {
+      const res = await fetch(feeds[name], { headers: { "User-Agent": UA, Accept: "application/rss+xml, application/xml, text/xml" } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return parseFeed(await res.text(), name);
+    }),
+  );
+  const items = [];
+  const failed = [];
+  results.forEach((r, i) => (r.status === "fulfilled" ? items.push(...r.value) : failed.push(names[i])));
+  if (failed.length === names.length) throw new Error(`all news sites failed (${failed.join(", ")})`);
+  items.failedSites = failed;
+  return items;
+}
+
+export async function bingNews(query) {
+  const res = await fetch(`https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&qft=interval%3d%227%22`, {
+    headers: { "User-Agent": UA },
+  });
+  if (!res.ok) throw new Error(`Bing News HTTP ${res.status}`);
+  const items = parseFeed(await res.text(), "Bing News", null);
+  for (const it of items) {
+    it.source = "bing-news";
+    // Bing wraps links: .../apiclick.aspx?...&url=<real link>
+    try {
+      const real = new URL(it.url).searchParams.get("url");
+      if (real) it.url = real;
+    } catch {}
+  }
+  return items;
+}
+
 // ---------- Reddit r/GTA6 top posts of the day ----------
 export function parseReddit(json) {
   return (json?.data?.children || [])
@@ -53,11 +133,25 @@ export function parseReddit(json) {
     }));
 }
 
-export async function reddit(sub = "GTA6") {
-  const res = await fetch(`https://www.reddit.com/r/${sub}/top.json?t=day&limit=30&raw_json=1`, {
-    headers: { "User-Agent": UA },
-  });
-  if (!res.ok) throw new Error(`Reddit HTTP ${res.status} (Reddit sometimes blocks cloud servers)`);
+export async function reddit(sub = "GTA6", clientId = "", clientSecret = "") {
+  let base = "https://www.reddit.com";
+  const headers = { "User-Agent": UA };
+  if (clientId && clientSecret) {
+    // free Reddit app login - Reddit blocks anonymous requests from cloud servers
+    const tok = await fetch("https://www.reddit.com/api/v1/access_token", {
+      method: "POST",
+      headers: { ...headers, Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}` },
+      body: new URLSearchParams({ grant_type: "client_credentials" }),
+    });
+    if (!tok.ok) throw new Error(`Reddit login HTTP ${tok.status}`);
+    headers.Authorization = `Bearer ${(await tok.json()).access_token}`;
+    base = "https://oauth.reddit.com";
+  }
+  const res = await fetch(`${base}/r/${sub}/top.json?t=day&limit=30&raw_json=1`, { headers });
+  if (!res.ok) {
+    const hint = clientId ? "" : " - blocked for cloud servers; add REDDIT_CLIENT_ID/SECRET (see SCOUT.md)";
+    throw new Error(`Reddit HTTP ${res.status}${hint}`);
+  }
   return parseReddit(await res.json());
 }
 
@@ -131,10 +225,12 @@ export async function twitch(clientId, clientSecret, since, gameName = "Grand Th
 export async function collectAll(env, now = new Date()) {
   const since = new Date(now.getTime() - 26 * 3_600_000).toISOString();
   const jobs = {
-    "google-news": () => googleNews('"GTA 6" OR "GTA VI" when:1d'),
-    rockstar: () => googleNews("site:rockstargames.com GTA when:3d"),
-    reddit: () => reddit("GTA6"),
+    "news-sites": () => newsSites(),
+    "bing-news": () => bingNews('"GTA 6" OR "GTA VI"'),
+    reddit: () => reddit("GTA6", env.REDDIT_CLIENT_ID, env.REDDIT_CLIENT_SECRET),
   };
+  // Google News blocks Cloudflare most of the time; only try it if you turn it on.
+  if (env.USE_GOOGLE_NEWS === "1") jobs["google-news"] = () => googleNews('"GTA 6" OR "GTA VI" when:1d');
   if (env.YOUTUBE_API_KEY) jobs.youtube = () => youtube(env.YOUTUBE_API_KEY, since);
   if (env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET) {
     jobs.twitch = () => twitch(env.TWITCH_CLIENT_ID, env.TWITCH_CLIENT_SECRET, since, env.TWITCH_GAME || undefined);
@@ -145,8 +241,10 @@ export async function collectAll(env, now = new Date()) {
   const items = [];
   const errors = {};
   settled.forEach((r, i) => {
-    if (r.status === "fulfilled") items.push(...r.value);
-    else errors[names[i]] = String(r.reason?.message || r.reason).slice(0, 300);
+    if (r.status === "fulfilled") {
+      items.push(...r.value);
+      if (r.value.failedSites?.length) errors[`${names[i]} (some)`] = `no answer from ${r.value.failedSites.join(", ")}`;
+    } else errors[names[i]] = String(r.reason?.message || r.reason).slice(0, 300);
   });
   const skipped = [];
   if (!env.YOUTUBE_API_KEY) skipped.push("youtube (no YOUTUBE_API_KEY)");

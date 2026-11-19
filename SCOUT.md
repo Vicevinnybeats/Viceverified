@@ -4,9 +4,9 @@ The Scout is a free **Cloudflare Worker**. Twice a day (06:13 and 18:13 UTC) it 
 
 | Source | What it finds | Needs |
 |---|---|---|
-| Google News | GTA 6 news from IGN, Kotaku, etc. | nothing ✅ |
-| Rockstar (rockstargames.com via Google News) | official news | nothing ✅ |
-| Reddit r/GTA6 | top posts of the day | nothing (Reddit sometimes blocks cloud servers, which the report will show) |
+| News sites (IGN, GameSpot, PC Gamer, Eurogamer, VGC, Kotaku, Polygon, Push Square) | GTA 6 stories, including Rockstar announcements | nothing ✅ |
+| Bing News | GTA 6 news from everywhere else | nothing ✅ |
+| Reddit r/GTA6 | top posts of the day | free Reddit app (step 4b). Reddit blocks cloud servers without it |
 | Twitch | **most-watched GTA 6 clips**, for stream clips | free Twitch app (step 4) |
 | YouTube | most-viewed GTA 6 uploads of the day | free API key (step 5) |
 
@@ -49,6 +49,13 @@ Make up any long random password, for example 30+ random letters and numbers.
 <https://dev.twitch.tv/console> → **Register Your Application** → name `viceverified-scout`, OAuth Redirect
 `http://localhost`, category *Application Integration*, client type *Confidential* → Create → **Manage** → New Secret.
 - secrets `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`
+
+### 4b. Reddit (optional, free)
+<https://www.reddit.com/prefs/apps> → **create another app…** → name `viceverified-scout`, choose **script**,
+redirect uri `http://localhost` → **create app**. The code under the app name is the ID; **secret** is the secret.
+- secrets `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`, then run the deploy again (step 7)
+
+> Google News blocks Cloudflare's servers, so it's off by default. The news sites and Bing cover the same stories.
 
 ### 5. YouTube trending (optional, free)
 In the same Google Cloud project as the Poster: **APIs & Services → Credentials → Create credentials → API key**.
