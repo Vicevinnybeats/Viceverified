@@ -255,3 +255,12 @@ test("Reddit uses the app login when keys are set", async () => {
     globalThis.fetch = real;
   }
 });
+
+test("pages are never cached by the browser", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const env = { DB: fakeDB(), SCOUT_KEY: "k" };
+  for (const path of ["/", "/run?key=wrong", "/api/items"]) {
+    const res = await worker.fetch(new Request(`https://s.dev${path}`), env);
+    assert.match(res.headers.get("Cache-Control") || "", /no-store/, path);
+  }
+});

@@ -104,8 +104,10 @@ function authorized(request, env) {
   return env.SCOUT_KEY && request.headers.get("Authorization") === `Bearer ${env.SCOUT_KEY}`;
 }
 
+// never let a browser show an old copy of a page
+const NO_CACHE = { "Cache-Control": "no-store, max-age=0" };
 const json = (data, status = 200) =>
-  new Response(JSON.stringify(data, null, 2), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(data, null, 2), { status, headers: { "Content-Type": "application/json", ...NO_CACHE } });
 
 export default {
   async scheduled(event, env, ctx) {
@@ -134,12 +136,12 @@ export default {
           delete run.errors.ai;
         }
         const md = buildReport({ day: dayString(), items, run });
-        return new Response(md, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+        return new Response(md, { headers: { "Content-Type": "text/plain; charset=utf-8", ...NO_CACHE } });
       }
       // Browser-friendly "run now": /run?key=YOUR_SCOUT_KEY
       if (request.method === "GET" && url.pathname === "/run") {
         if (!env.SCOUT_KEY || url.searchParams.get("key") !== env.SCOUT_KEY) {
-          return new Response("Wrong or missing key. Use /run?key=YOUR_SCOUT_KEY", { status: 401 });
+          return new Response("Wrong or missing key. Use /run?key=YOUR_SCOUT_KEY", { status: 401, headers: NO_CACHE });
         }
         const { run, newItems } = await collect(env);
         const report = await dailyReport(env, new Date(), run);
@@ -151,7 +153,7 @@ export default {
           (problems ? `\nSources with problems:\n${problems}\n` : "") +
           (ai ? `\nQwen problems:\n${ai}\n` : "") +
           `\nOpen ${url.origin}/ to see the list.`;
-        return new Response(text, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+        return new Response(text, { headers: { "Content-Type": "text/plain; charset=utf-8", ...NO_CACHE } });
       }
       if (request.method === "GET" && url.pathname === "/api/items") {
         const items = await recentItems(env, {
