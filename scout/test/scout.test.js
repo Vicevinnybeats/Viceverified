@@ -299,3 +299,77 @@ test("maker routes need the key", async () => {
     method: "POST", headers: { Authorization: "Bearer k" }, body: JSON.stringify({ kind: "news", title: "x" }) }), env);
   assert.equal((await ok.json()).hook, "h");
 });
+
+// ---- accounts: TikTok login, pages, token memory -----------------------------------------
+function kvDB() {
+  const kv = new Map();
+  return {
+    kv,
+    prepare(sql) {
+      return {
+        args: [],
+        bind(...a) { return { ...this, args: a }; },
+        async first() { return kv.has(this.args[0]) ? { value: kv.get(this.args[0]) } : null; },
+        async run() {
+          if (sql.startsWith("INSERT INTO kv")) kv.set(this.args[0], this.args[1]);
+          if (sql.startsWith("DELETE FROM kv")) kv.delete(this.args[0]);
+          return {};
+        },
+      };
+    },
+  };
+}
+
+test("terms and privacy pages exist", async () => {
+  const { default: worker } = await import("../src/index.js");
+  for (const p of ["/terms", "/privacy"]) {
+    const res = await worker.fetch(new Request(`https://s.dev${p}`), { DB: kvDB() });
+    assert.equal(res.status, 200);
+    assert.match(await res.text(), /Viceverified/);
+  }
+});
+
+test("TikTok login: needs key, redirects, callback saves token for the Poster", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const DB = kvDB();
+  const env = { DB, SCOUT_KEY: "k", TIKTOK_CLIENT_KEY: "ck", TIKTOK_CLIENT_SECRET: "cs" };
+  const bad = await worker.fetch(new Request("https://s.dev/tiktok/login?key=nope"), env);
+  assert.match(await bad.text(), /Wrong or missing key/);
+
+  const go = await worker.fetch(new Request("https://s.dev/tiktok/login?key=k"), env);
+  assert.equal(go.status, 302);
+  const auth = new URL(go.headers.get("Location"));
+  assert.equal(auth.searchParams.get("redirect_uri"), "https://s.dev/tiktok/callback");
+  assert.equal(auth.searchParams.get("scope"), "user.info.basic,video.upload,video.publish");
+  const state = auth.searchParams.get("state");
+
+  const real = globalThis.fetch;
+  let sent;
+  globalThis.fetch = async (url, opts) => { sent = Object.fromEntries(new URLSearchParams(opts.body)); return Response.json({ refresh_token: "RT", scope: "video.publish" }); };
+  try {
+    const done = await worker.fetch(new Request(`https://s.dev/tiktok/callback?code=C&state=${state}`), env);
+    assert.match(await done.text(), /TikTok is connected/);
+  } finally {
+    globalThis.fetch = real;
+  }
+  assert.equal(sent.code, "C");
+  assert.equal(sent.grant_type, "authorization_code");
+  const saved = JSON.parse(DB.kv.get("state:poster"));
+  assert.equal(saved.tiktok_refresh.value, "RT");
+  // sha256("")[:16] - the Poster's marker for "no GitHub secret set"
+  assert.equal(saved.tiktok_refresh.env_hash, "e3b0c44298fc1c14");
+  assert.equal(DB.kv.has(`oauth:${state}`), false);
+
+  const replay = await worker.fetch(new Request(`https://s.dev/tiktok/callback?code=C&state=${state}`), env);
+  assert.match(await replay.text(), /expired or unknown/);
+});
+
+test("state memory needs the key and round-trips JSON", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const env = { DB: kvDB(), SCOUT_KEY: "k" };
+  const h = { Authorization: "Bearer k" };
+  assert.equal((await worker.fetch(new Request("https://s.dev/api/state/poster"), env)).status, 401);
+  await worker.fetch(new Request("https://s.dev/api/state/poster", { method: "PUT", headers: h, body: '{"a":1}' }), env);
+  const got = await worker.fetch(new Request("https://s.dev/api/state/poster", { headers: h }), env);
+  assert.deepEqual(await got.json(), { a: 1 });
+});

@@ -17,6 +17,7 @@ import { collectAll } from "./sources.js";
 import { notify, saveToGitHub } from "./deliver.js";
 import { dayString, sha1, titleKey } from "./util.js";
 import { speak, transcribe, writeScript } from "./maker-api.js";
+import { kvGet, kvPut, privacyPage, termsPage, tiktokCallback, tiktokLogin } from "./accounts.js";
 
 const REPORT_CRON = "13 6 * * *"; // the morning run also writes the daily report
 
@@ -143,6 +144,23 @@ export default {
         return new Response(md, { headers: { "Content-Type": "text/plain; charset=utf-8", ...NO_CACHE } });
       }
       // Browser-friendly "run now": /run?key=YOUR_SCOUT_KEY
+      if (request.method === "GET" && url.pathname === "/terms") return termsPage();
+      if (request.method === "GET" && url.pathname === "/privacy") return privacyPage();
+      if (request.method === "GET" && url.pathname === "/tiktok/login") return tiktokLogin(request, env);
+      if (request.method === "GET" && url.pathname === "/tiktok/callback") return tiktokCallback(request, env);
+      const stateMatch = url.pathname.match(/^\/api\/state\/([a-z0-9_-]{1,40})$/);
+      if (stateMatch && (request.method === "GET" || request.method === "PUT")) {
+        if (!authorized(request, env)) return json({ error: "missing or wrong SCOUT_KEY" }, 401);
+        const key = `state:${stateMatch[1]}`;
+        if (request.method === "GET") {
+          const value = await kvGet(env, key);
+          return new Response(value || "{}", { headers: { "Content-Type": "application/json", ...NO_CACHE } });
+        }
+        const text = await request.text();
+        JSON.parse(text); // must be valid JSON
+        await kvPut(env, key, text);
+        return json({ ok: true });
+      }
       if (request.method === "GET" && url.pathname === "/run") {
         if (!env.SCOUT_KEY || url.searchParams.get("key") !== env.SCOUT_KEY) {
           return new Response("Wrong or missing key. Use /run?key=YOUR_SCOUT_KEY", { status: 401, headers: NO_CACHE });

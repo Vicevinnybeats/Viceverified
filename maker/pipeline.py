@@ -46,7 +46,8 @@ def sidecar(script: dict, item: dict) -> dict:
 
 
 class Outbox:
-    """Finished Shorts go to Google Drive Viceverified/Inbox (Poster picks them up) and to out/."""
+    """Finished Shorts go to out/ (the Poster posts them right after rendering) and, if Google is
+    connected, a copy goes to Drive Viceverified/Made as an archive."""
 
     def __init__(self, cfg: Config, log=print):
         self.cfg, self.log = cfg, log
@@ -61,7 +62,7 @@ class Outbox:
             if pc.has_google:
                 self.drive = Drive(access_token(pc))
                 root = self.drive.ensure_folder(pc.drive_root_folder)
-                self.inbox = self.drive.ensure_folder("Inbox", root)
+                self.inbox = self.drive.ensure_folder("Made", root)
                 self.broll_folder = self.drive.ensure_folder("Broll", root)
         except Exception as exc:
             self.log(f"Google Drive not used ({exc}) - Shorts are saved to the GitHub run only.")
@@ -86,7 +87,7 @@ class Outbox:
             # caption file first, so the Poster never sees the video without it
             self.drive.write_text(f"{name}.json", self.inbox, json.dumps(meta, indent=2, ensure_ascii=False))
             self.drive.upload_file(local, self.inbox)  # same name as the caption file
-            return "Drive Inbox"
+            return "out/ + Drive Made"
         return "GitHub run files"
 
 

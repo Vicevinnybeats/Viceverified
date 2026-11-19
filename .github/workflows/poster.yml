@@ -43,9 +43,10 @@ jobs:
           TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          SCOUT_KEY: ${{ secrets.SCOUT_KEY }}
           # Optional settings (Settings > Secrets and variables > Actions > Variables)
           YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'public' }}
-          TIKTOK_MODE: ${{ vars.TIKTOK_MODE || 'direct' }}
+          TIKTOK_MODE: ${{ vars.TIKTOK_MODE || 'inbox' }}
           POSTER_PLATFORMS: ${{ vars.POSTER_PLATFORMS || 'youtube,instagram,tiktok' }}
           QWEN_MODEL: ${{ vars.QWEN_MODEL || '@cf/qwen/qwen3.8-27b' }}
         run: |

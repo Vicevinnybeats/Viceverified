@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from . import captions, google, instagram, tiktok
 from .config import ALL_PLATFORMS, Config, load_dotenv
 from .meta import Meta, normalize_hashtags
-from .runner import Poster, process_inbox
-from .state import local_state
+from .runner import Poster, pick_state, post_folder, process_inbox
 
 
 def cmd_post(cfg: Config, args) -> int:
@@ -28,7 +28,7 @@ def cmd_post(cfg: Config, args) -> int:
     )
     meta = captions.enrich(cfg, meta)
     print(json.dumps(meta.to_dict(), indent=2, ensure_ascii=False))
-    results = Poster(cfg, local_state()).post_video(args.video, meta, dry_run=args.dry_run)
+    results = Poster(cfg, pick_state(cfg)).post_video(args.video, meta, dry_run=args.dry_run)
     print(json.dumps(results, indent=2))
     return 0 if all(r.get("ok") or r.get("skipped") for r in results.values()) else 1
 
@@ -77,7 +77,10 @@ def cmd_check(cfg: Config, _args) -> int:
 
     if cfg.has_tiktok:
         def tt():
-            access, _ = tiktok.refresh(cfg, cfg.tiktok_refresh_token)
+            token = pick_state(cfg).token("tiktok_refresh", cfg.tiktok_refresh_token)
+            if not token:
+                raise RuntimeError("not logged in yet - open /tiktok/login?key=YOUR_SCOUT_KEY on your Scout")
+            access, _ = tiktok.refresh(cfg, token)
             info = tiktok.creator_info(access)
             return (f"@{info.get('creator_username')} - allowed privacy: {info.get('privacy_level_options')} "
                     f"(mode: {cfg.tiktok_mode})")
@@ -110,6 +113,10 @@ def main(argv=None) -> int:
     si.add_argument("--dry-run", action="store_true")
     si.add_argument("--max", type=int)
 
+    sf = sub.add_parser("folder", help="post every video in a folder (used after the Short maker)")
+    sf.add_argument("folder")
+    sf.add_argument("--dry-run", action="store_true")
+
     sub.add_parser("check", help="test all logins")
 
     sa = sub.add_parser("auth", help="one-time logins (run on your PC)")
@@ -126,6 +133,20 @@ def main(argv=None) -> int:
         return cmd_inbox(cfg, args)
     if args.cmd == "check":
         return cmd_check(cfg, args)
+    if args.cmd == "folder":
+        summary = post_folder(cfg, args.folder, dry_run=args.dry_run)
+        lines = ["## 📲 Poster", ""]
+        for item in summary:
+            for platform, r in item["results"].items():
+                icon = "✅" if r.get("ok") else ("⚪" if r.get("skipped") else "❌")
+                detail = r.get("url") or r.get("status") or r.get("error", "")
+                lines.append(f"- {icon} **{platform}** · {item['video']} · {detail}")
+        md = "\n".join(lines) + "\n"
+        print("\n" + md)
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+                f.write(md)
+        return 0
     if args.cmd == "refresh-instagram":
         print(instagram.refresh_token(cfg, cfg.ig_access_token))
         return 0

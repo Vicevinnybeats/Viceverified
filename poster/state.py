@@ -30,7 +30,7 @@ class State:
 
     def token(self, name: str, env_value: str) -> str:
         entry = self.data.get(name) or {}
-        if env_value and entry.get("env_hash") == _hash(env_value) and entry.get("value"):
+        if entry.get("env_hash") == _hash(env_value or "") and entry.get("value"):
             return entry["value"]
         return env_value
 
@@ -74,5 +74,24 @@ def drive_state(drive, folder_id: str, name: str = "state.json") -> State:
 
     def save(text: str):
         holder["id"] = drive.write_text(name, folder_id, text, holder.get("id"))
+
+    return State(load, save)
+
+
+def scout_state(url: str, key: str, name: str = "poster") -> State:
+    """Memory kept in your Scout Worker (Cloudflare D1) - works without Google Drive."""
+    import requests
+
+    endpoint = f"{url.rstrip('/')}/api/state/{name}"
+    headers = {"Authorization": f"Bearer {key}"}
+
+    def load():
+        r = requests.get(endpoint, headers=headers, timeout=30)
+        r.raise_for_status()
+        return r.text if r.text.strip() not in ("", "{}") else None
+
+    def save(text: str):
+        requests.put(endpoint, data=text.encode(), headers={**headers, "Content-Type": "application/json"},
+                     timeout=30).raise_for_status()
 
     return State(load, save)

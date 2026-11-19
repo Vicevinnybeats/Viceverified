@@ -40,11 +40,13 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
         run: |
           node -e '
             const names = ["GITHUB_TOKEN","SCOUT_KEY","TWITCH_CLIENT_ID","TWITCH_CLIENT_SECRET",
               "YOUTUBE_API_KEY","DISCORD_WEBHOOK_URL","TELEGRAM_BOT_TOKEN","TELEGRAM_CHAT_ID",
-              "REDDIT_CLIENT_ID","REDDIT_CLIENT_SECRET"];
+              "REDDIT_CLIENT_ID","REDDIT_CLIENT_SECRET","TIKTOK_CLIENT_KEY","TIKTOK_CLIENT_SECRET"];
             const out = {};
             for (const n of names) if (process.env[n]) out[n] = process.env[n];
             require("fs").writeFileSync(".secrets.json", JSON.stringify(out));

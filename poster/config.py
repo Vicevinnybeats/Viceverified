@@ -61,6 +61,10 @@ class Config:
     cf_api_token: str = ""
     qwen_model: str = "@cf/qwen/qwen3.8-27b"
 
+    # Your Scout Worker keeps the Poster's token memory when Google Drive isn't connected
+    scout_url: str = "https://viceverified-scout.vicevinnybeats.workers.dev"
+    scout_key: str = ""
+
     platforms: list[str] = field(default_factory=lambda: list(ALL_PLATFORMS))
     max_per_run: int = 3
     max_attempts: int = 3
@@ -92,6 +96,8 @@ class Config:
             cf_account_id=_env("CF_ACCOUNT_ID"),
             cf_api_token=_env("CF_API_TOKEN"),
             qwen_model=_env("QWEN_MODEL", "@cf/qwen/qwen3.8-27b"),
+            scout_url=_env("SCOUT_URL", "https://viceverified-scout.vicevinnybeats.workers.dev"),
+            scout_key=_env("SCOUT_KEY"),
             platforms=[p for p in platforms if p in ALL_PLATFORMS],
             max_per_run=int(_env("POSTER_MAX_PER_RUN", "3") or 3),
             max_attempts=int(_env("POSTER_MAX_ATTEMPTS", "3") or 3),
@@ -113,7 +119,9 @@ class Config:
 
     @property
     def has_tiktok(self) -> bool:
-        return bool(self.tiktok_client_key and self.tiktok_client_secret and self.tiktok_refresh_token)
+        # the refresh token may also come from the Scout's "Log in with TikTok" page (saved memory)
+        return bool(self.tiktok_client_key and self.tiktok_client_secret
+                    and (self.tiktok_refresh_token or self.scout_key))
 
     @property
     def has_qwen(self) -> bool:

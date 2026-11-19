@@ -114,9 +114,7 @@ def process_inbox(cfg: Config, log=print, dry_run: bool = False, max_videos: int
     failed = drive.ensure_folder("Failed", root)
     system = drive.ensure_folder("_poster", root)
 
-    from .state import drive_state
-
-    poster = Poster(cfg, drive_state(drive, system), log, google_token=token)
+    poster = Poster(cfg, pick_state(cfg, drive, system), log, google_token=token)
     files = drive.list_children(inbox)
     by_name = {f["name"]: f for f in files}
     videos = [f for f in files if f["name"].lower().endswith(VIDEO_EXT) or f["mimeType"].startswith("video/")]
@@ -167,4 +165,42 @@ def process_inbox(cfg: Config, log=print, dry_run: bool = False, max_videos: int
         else:
             log(f"  → stays in Inbox, will retry next run (try {record['attempts']}/{cfg.max_attempts})")
         summary.append({"video": name, "done": done, "results": record["results"]})
+    return summary
+
+
+def pick_state(cfg: Config, drive=None, drive_folder: str | None = None) -> State:
+    """Where the Poster remembers rotated tokens: your Scout (preferred), else Drive, else a local file."""
+    from .state import drive_state, local_state, scout_state
+
+    if cfg.scout_key:
+        return scout_state(cfg.scout_url, cfg.scout_key)
+    if drive and drive_folder:
+        return drive_state(drive, drive_folder)
+    return local_state()
+
+
+def post_folder(cfg: Config, folder: str, log=print, dry_run: bool = False) -> list[dict]:
+    """Posts every video in a folder (with its same-name .json/.txt caption file).
+    Used right after the Short maker renders - no Google Drive needed."""
+    names = sorted(f for f in os.listdir(folder) if f.lower().endswith(VIDEO_EXT))
+    if not names:
+        log("No new Shorts to post.")
+        return []
+    poster = Poster(cfg, pick_state(cfg), log)
+    summary = []
+    for name in names:
+        stem = os.path.splitext(name)[0]
+        side = next((os.path.join(folder, stem + ext) for ext in (".json", ".txt")
+                     if os.path.exists(os.path.join(folder, stem + ext))), None)
+        if side:
+            with open(side, encoding="utf-8") as f:
+                meta = parse_sidecar(side, f.read(), name)
+        else:
+            meta = Meta(title=title_from_filename(name))
+        meta = captions.enrich(cfg, meta, log)
+        log(f"\n▶ {name}")
+        results = poster.post_video(os.path.join(folder, name), meta, dry_run=dry_run)
+        with open(os.path.join(folder, f"{stem}.result.json"), "w", encoding="utf-8") as f:
+            json.dump({"meta": meta.to_dict(), "results": results, "at": now_iso()}, f, indent=2, ensure_ascii=False)
+        summary.append({"video": name, "done": all_done(poster, meta, results), "results": results})
     return summary
