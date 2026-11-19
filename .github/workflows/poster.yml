@@ -1,0 +1,66 @@
+name: Poster
+
+# Every 2 hours, check Google Drive Viceverified/Inbox and post new Shorts
+# to YouTube, Instagram and TikTok. You can also press "Run workflow" by hand.
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (show captions, post nothing)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: poster
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Post Shorts from the Drive inbox
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          # Optional settings (Settings > Secrets and variables > Actions > Variables)
+          YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'public' }}
+          TIKTOK_MODE: ${{ vars.TIKTOK_MODE || 'direct' }}
+          POSTER_PLATFORMS: ${{ vars.POSTER_PLATFORMS || 'youtube,instagram,tiktok' }}
+          QWEN_MODEL: ${{ vars.QWEN_MODEL || '@cf/qwen/qwen3-30b-a3b-fp8' }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python -m poster inbox --dry-run
+          else
+            python -m poster inbox
+          fi
+
+  tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt && python -m unittest discover -s tests -v

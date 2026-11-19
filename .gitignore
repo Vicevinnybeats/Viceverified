@@ -1,0 +1,7 @@
+.env
+.poster-state.json
+__pycache__/
+*.pyc
+*.mp4
+*.mov
+mybrain-out/
