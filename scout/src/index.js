@@ -126,6 +126,10 @@ export default {
 
   async fetch(request, env) {
     const url = new URL(request.url);
+    // forgive small typos: trailing slash, double slashes, capital letters in page names
+    const cleaned = url.pathname.replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
+    if (/^\/(tiktok\/(login|callback)|terms|privacy|run)$/i.test(cleaned)) url.pathname = cleaned.toLowerCase();
+    else url.pathname = cleaned;
     try {
       if (request.method === "GET" && url.pathname === "/") {
         const items = await recentItems(env, { hours: 24 });
@@ -223,7 +227,17 @@ export default {
           return json({ ok: true });
         }
       }
-      return json({ error: "not found" }, 404);
+      return json({
+        error: "not found",
+        you_asked_for: url.pathname,
+        pages: {
+          "today's list": `${url.origin}/`,
+          "run the scout now": `${url.origin}/run?key=YOUR_SCOUT_KEY`,
+          "connect TikTok": `${url.origin}/tiktok/login?key=YOUR_SCOUT_KEY`,
+          terms: `${url.origin}/terms`,
+          privacy: `${url.origin}/privacy`,
+        },
+      }, 404);
     } catch (err) {
       return json({ error: String(err?.message || err) }, 500);
     }

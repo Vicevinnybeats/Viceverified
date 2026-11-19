@@ -385,3 +385,13 @@ test("serves site-verification files saved in the kv table", async () => {
   const missing = await worker.fetch(new Request("https://s.dev/nothere.txt"), { DB, DB_: 1 });
   assert.equal(missing.status, 404);
 });
+
+test("small typos in page addresses still work", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const env = { DB: kvDB(), SCOUT_KEY: "k" };
+  const res = await worker.fetch(new Request("https://s.dev/TikTok/Login/?key=nope"), env);
+  assert.match(await res.text(), /Wrong or missing key/);
+  const nf = await worker.fetch(new Request("https://s.dev/tiktk"), env);
+  assert.equal(nf.status, 404);
+  assert.match(JSON.stringify(await nf.json()), /tiktok\/login\?key=YOUR_SCOUT_KEY/);
+});
