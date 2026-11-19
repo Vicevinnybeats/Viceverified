@@ -122,8 +122,36 @@ export default {
     try {
       if (request.method === "GET" && url.pathname === "/") {
         const items = await recentItems(env, { hours: 24 });
-        const md = buildReport({ day: dayString(), items, run: { sources: ["live view"], errors: {} } });
-        return new Response(md, { headers: { "Content-Type": "text/markdown; charset=utf-8" } });
+        const last = await lastRun(env);
+        const run = {
+          sources: ["live view"],
+          errors: last ? JSON.parse(last.errors || "{}") : {},
+          twitch: Boolean(env.TWITCH_CLIENT_ID),
+          lastRunAt: last?.at || "",
+        };
+        if (run.errors.ai) {
+          run.aiErrors = run.errors.ai;
+          delete run.errors.ai;
+        }
+        const md = buildReport({ day: dayString(), items, run });
+        return new Response(md, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+      }
+      // Browser-friendly "run now": /run?key=YOUR_SCOUT_KEY
+      if (request.method === "GET" && url.pathname === "/run") {
+        if (!env.SCOUT_KEY || url.searchParams.get("key") !== env.SCOUT_KEY) {
+          return new Response("Wrong or missing key. Use /run?key=YOUR_SCOUT_KEY", { status: 401 });
+        }
+        const { run, newItems } = await collect(env);
+        const report = await dailyReport(env, new Date(), run);
+        const problems = Object.entries(run.errors).map(([k, v]) => `  - ${k}: ${v}`).join("\n");
+        const ai = (run.aiErrors || []).map((e) => `  - ${e}`).join("\n");
+        const text =
+          `✅ Scout ran.\n\nNew finds: ${newItems.length}\n` +
+          `Saved to GitHub: ${report.link || "no (GITHUB_TOKEN missing?)"}\n` +
+          (problems ? `\nSources with problems:\n${problems}\n` : "") +
+          (ai ? `\nQwen problems:\n${ai}\n` : "") +
+          `\nOpen ${url.origin}/ to see the list.`;
+        return new Response(text, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
       }
       if (request.method === "GET" && url.pathname === "/api/items") {
         const items = await recentItems(env, {

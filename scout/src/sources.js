@@ -151,5 +151,5 @@ export async function collectAll(env, now = new Date()) {
   const skipped = [];
   if (!env.YOUTUBE_API_KEY) skipped.push("youtube (no YOUTUBE_API_KEY)");
   if (!env.TWITCH_CLIENT_ID) skipped.push("twitch (no TWITCH_CLIENT_ID)");
-  return { items, errors, skipped, sources: names };
+  return { items, errors, skipped, sources: names, twitch: Boolean(env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET) };
 }

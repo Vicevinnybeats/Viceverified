@@ -188,3 +188,19 @@ test("collect stores new finds once and the report goes to GitHub", async () => 
     globalThis.fetch = realFetch;
   }
 });
+
+test("live page says when the Scout hasn't run, and /run needs the key", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const DB = fakeDB();
+  const env = { DB, SCOUT_KEY: "secret", TWITCH_CLIENT_ID: "x" };
+  const page = await (await worker.fetch(new Request("https://s.dev/"), env)).text();
+  assert.match(page, /hasn't run yet/);
+  assert.match(page, /No new clips yet/);
+  const denied = await worker.fetch(new Request("https://s.dev/run?key=nope"), env);
+  assert.equal(denied.status, 401);
+});
+
+test("report without Twitch tells you to add it", () => {
+  const md = buildReport({ day: "d", items: [], run: { twitch: false, sources: [], errors: {} } });
+  assert.match(md, /add TWITCH_CLIENT_ID/);
+});

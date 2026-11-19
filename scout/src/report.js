@@ -17,6 +17,11 @@ export function buildReport({ day, items, run }) {
 
   const out = [];
   out.push(`# 🔍 GTA 6 Scout - ${day}`, "");
+  if (run.lastRunAt === "") {
+    out.push("⏳ The Scout hasn't run yet. Automatic runs: 06:13 and 18:13 UTC (or open /run?key=YOUR_SCOUT_KEY).", "");
+  } else if (run.lastRunAt) {
+    out.push(`Last run: ${run.lastRunAt.replace("T", " ").slice(0, 16)} UTC`, "");
+  }
   out.push(
     `**${items.length} new finds** in the last 24h · ${newInfo} with genuinely new info · ` +
       `${clips.length} stream clips`,
@@ -46,7 +51,9 @@ export function buildReport({ day, items, run }) {
     for (const i of clips.slice(0, 15)) {
       out.push(`| ${fmtNum(i.metric)} | [${esc(i.title)}](${i.url}) | ${esc(i.author)} | \`${i.id}\` |`);
     }
-  } else out.push("_No clips (add TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET to turn this on)._");
+  } else if (run.twitch === false) {
+    out.push("_No clips (add TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET to turn this on)._");
+  } else out.push("_No new clips yet._");
   out.push("");
 
   out.push("---", "");
