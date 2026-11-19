@@ -35,6 +35,13 @@ most-watched stream clips, scores them, and keeps a list in D1. Every morning it
 
 👉 **Setup guide: [SCOUT.md](SCOUT.md)** · code in `scout/` · tests: `cd scout && node --test`
 
-## Coming next
+## Short maker ✅
 
-- **Clipper / news-Short maker:** turns Scout finds into vertical videos and drops them in the Inbox
+Twice a day it turns the Scout's best finds into vertical Shorts: news Shorts with a **VoiceStudio**
+voiceover and stream-clip Shorts with captions. They go to the Drive Inbox for the Poster.
+
+👉 **Guide: [SHORTS.md](SHORTS.md)** · code in `maker/` · workflow `.github/workflows/make-shorts.yml`
+
+## The full loop
+
+Scout (Cloudflare, 06:13/18:13 UTC) → Short maker (GitHub Actions, 06:43/18:43) → Drive Inbox → Poster (every 2 h) → YouTube · Instagram · TikTok

@@ -8,3 +8,5 @@ mybrain-out/
 node_modules/
 .wrangler/
 .secrets.json
+out/
+maker/fonts/*.ttf

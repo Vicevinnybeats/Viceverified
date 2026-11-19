@@ -61,7 +61,7 @@ export function parseScores(text) {
   return arr;
 }
 
-async function runQwen(env, messages) {
+export async function runQwen(env, messages) {
   const model = env.QWEN_MODEL || DEFAULT_MODEL;
   try {
     // low reasoning = far fewer tokens = stays inside the free daily allowance

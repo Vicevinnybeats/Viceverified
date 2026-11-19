@@ -264,3 +264,38 @@ test("pages are never cached by the browser", async () => {
     assert.match(res.headers.get("Cache-Control") || "", /no-store/, path);
   }
 });
+
+// ---- Short maker helpers ----------------------------------------------------------------
+import { buildWritePrompt, parseObject, wordsFrom, writeScript } from "../src/maker-api.js";
+
+test("script prompt uses only the article and flags unsafe topics", () => {
+  const p = buildWritePrompt({ kind: "news", title: "Cast revealed", author: "Eurogamer", facts: "Rockstar named the cast." });
+  assert.match(p, /Article text: Rockstar named the cast\./);
+  assert.match(p, /"safe": true/);
+  assert.match(buildWritePrompt({ kind: "clip", title: "LMAO", author: "xQc", metric: 5 }), /Stream clip from xQc/);
+});
+
+test("writeScript cleans Qwen's answer", async () => {
+  const env = { AI: { run: async () => ({ response: '<think>x</think>{"hook":"Cast is OUT","voiceover":"Big news.","title":"T","hashtags":["#gta6"],"safe":false}' }) } };
+  const s = await writeScript(env, { kind: "news", title: "Cast" });
+  assert.equal(s.hook, "Cast is OUT");
+  assert.equal(s.safe, false);
+  assert.deepEqual(s.hashtags, ["#gta6"]);
+  assert.throws(() => parseObject("nothing"), /no JSON/);
+});
+
+test("word timings from both Whisper formats", () => {
+  assert.deepEqual(wordsFrom({ words: [{ word: " Hi", start: 0, end: 0.4 }] }), [{ word: "Hi", start: 0, end: 0.4 }]);
+  assert.equal(wordsFrom({ segments: [{ words: [{ word: "a", start: 0, end: 1 }, { word: "b", start: 1, end: 2 }] }] }).length, 2);
+  assert.deepEqual(wordsFrom({}), []);
+});
+
+test("maker routes need the key", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const env = { DB: fakeDB(), SCOUT_KEY: "k", AI: { run: async () => ({ response: '{"hook":"h","voiceover":"v","title":"t"}' }) } };
+  const denied = await worker.fetch(new Request("https://s.dev/api/write", { method: "POST", body: "{}" }), env);
+  assert.equal(denied.status, 401);
+  const ok = await worker.fetch(new Request("https://s.dev/api/write", {
+    method: "POST", headers: { Authorization: "Bearer k" }, body: JSON.stringify({ kind: "news", title: "x" }) }), env);
+  assert.equal((await ok.json()).hook, "h");
+});

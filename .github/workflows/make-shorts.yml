@@ -1,0 +1,116 @@
+name: Make Shorts
+
+# 30 minutes after each Scout run: turn the best finds into vertical Shorts.
+# Voice: VoiceStudio (https://github.com/debpalash/VoiceStudio) running right here
+# in Docker; Cloudflare's free voice is the backup. Finished Shorts go to
+# Google Drive Viceverified/Inbox (if Google is set up) and are always
+# downloadable from the run page under "Artifacts".
+on:
+  schedule:
+    - cron: "43 6 * * *"
+    - cron: "43 18 * * *"
+  workflow_dispatch:
+    inputs:
+      news:
+        description: "How many news Shorts"
+        default: "1"
+      clips:
+        description: "How many stream-clip Shorts"
+        default: "1"
+      dry_run:
+        description: "Dry run (only list what it would make)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: make-shorts
+  cancel-in-progress: false
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      SCOUT_KEY: ${{ secrets.SCOUT_KEY }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      VOICESTUDIO_MODEL: ${{ vars.VOICESTUDIO_MODEL || 'tts-1' }}
+      VOICESTUDIO_VOICE: ${{ vars.VOICESTUDIO_VOICE || 'alloy' }}
+      CLIP_STREAMERS: ${{ vars.CLIP_STREAMERS }}
+      NEWS_PER_RUN: ${{ inputs.news || vars.NEWS_PER_RUN || '1' }}
+      CLIPS_PER_RUN: ${{ inputs.clips || vars.CLIPS_PER_RUN || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install ffmpeg, yt-dlp and the caption font
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install -q -r requirements.txt yt-dlp
+          mkdir -p maker/fonts
+          curl -sSfL -o maker/fonts/Anton-Regular.ttf https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf || echo "font download failed - using a default bold font"
+
+      - name: Restore VoiceStudio voice models (downloaded once, then cached)
+        if: ${{ vars.USE_VOICESTUDIO != 'false' && !inputs.dry_run }}
+        uses: actions/cache@v4
+        with:
+          path: ~/voicestudio-data
+          key: voicestudio-data-v1
+
+      - name: Start VoiceStudio
+        if: ${{ vars.USE_VOICESTUDIO != 'false' && !inputs.dry_run }}
+        continue-on-error: true
+        env:
+          REMOTE_URL: ${{ secrets.VOICESTUDIO_URL }}
+          REMOTE_KEY: ${{ secrets.VOICESTUDIO_KEY }}
+        run: |
+          if [ -n "$REMOTE_URL" ]; then
+            echo "Using your own VoiceStudio at the VOICESTUDIO_URL secret"
+            echo "VOICESTUDIO_URL=$REMOTE_URL" >> "$GITHUB_ENV"
+            echo "VOICESTUDIO_KEY=$REMOTE_KEY" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+          echo "::add-mask::$KEY"
+          mkdir -p ~/voicestudio-data
+          docker run -d --name omnivoice -p 127.0.0.1:3900:3900 \
+            -e OMNIVOICE_API_KEY="$KEY" -e OMNIVOICE_DATA_DIR=/app/omnivoice_data \
+            -v "$HOME/voicestudio-data:/app/omnivoice_data" \
+            ghcr.io/debpalash/voicestudio:stable
+          echo "Waiting for VoiceStudio to start (first run downloads its voice model)..."
+          for i in $(seq 1 240); do
+            if curl -fsS -H "Authorization: Bearer $KEY" http://127.0.0.1:3900/health; then
+              echo; echo "VoiceStudio is up"
+              echo "VOICESTUDIO_URL=http://127.0.0.1:3900" >> "$GITHUB_ENV"
+              echo "VOICESTUDIO_KEY=$KEY" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "VoiceStudio did not start in 20 minutes - the backup voice will be used"
+          docker logs --tail 60 omnivoice || true
+          exit 1
+
+      - name: Voice test
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        run: python -m maker voice-test
+
+      - name: Make Shorts
+        run: python -m maker run ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: VoiceStudio log (for troubleshooting)
+        if: always()
+        run: docker logs --tail 80 omnivoice 2>&1 || echo "VoiceStudio was not started"
+
+      - name: Save the Shorts on this run's page
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shorts-${{ github.run_number }}
+          path: out/
+          retention-days: 7
+          if-no-files-found: ignore

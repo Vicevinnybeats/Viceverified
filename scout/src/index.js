@@ -8,11 +8,15 @@
 //   GET  /api/items?hours=24   finds as JSON (filters: status, kind, min_score)
 //   POST /api/items/<id>       {"status": "used" | "skip" | "new"}   (needs SCOUT_KEY)
 //   POST /api/run[?report=1]   run the Scout now                    (needs SCOUT_KEY)
+//   POST /api/write            Qwen writes a Short script           (needs SCOUT_KEY)
+//   POST /api/tts              backup AI voice (mp3)                (needs SCOUT_KEY)
+//   POST /api/transcribe       word timings for captions            (needs SCOUT_KEY)
 import { scoreItems } from "./rank.js";
 import { buildReport, shortSummary } from "./report.js";
 import { collectAll } from "./sources.js";
 import { notify, saveToGitHub } from "./deliver.js";
 import { dayString, sha1, titleKey } from "./util.js";
+import { speak, transcribe, writeScript } from "./maker-api.js";
 
 const REPORT_CRON = "13 6 * * *"; // the morning run also writes the daily report
 
@@ -170,6 +174,18 @@ export default {
           const { run, newItems } = await collect(env);
           const report = url.searchParams.get("report") ? await dailyReport(env, new Date(), run) : null;
           return json({ new_items: newItems.length, errors: run.errors, ai_errors: run.aiErrors, report: report?.link });
+        }
+        if (url.pathname === "/api/write") return json(await writeScript(env, await request.json()));
+        if (url.pathname === "/api/tts") {
+          const { text, speaker } = await request.json();
+          if (!text) return json({ error: "text is required" }, 400);
+          return speak(env, text, speaker);
+        }
+        if (url.pathname === "/api/transcribe") {
+          const audio = await request.arrayBuffer();
+          if (!audio.byteLength) return json({ error: "send the audio file as the request body" }, 400);
+          if (audio.byteLength > 4_000_000) return json({ error: "audio too big (max 4 MB)" }, 413);
+          return json(await transcribe(env, audio));
         }
         const m = url.pathname.match(/^\/api\/items\/([a-f0-9]{16})$/);
         if (m) {
