@@ -144,6 +144,12 @@ export default {
         return new Response(md, { headers: { "Content-Type": "text/plain; charset=utf-8", ...NO_CACHE } });
       }
       // Browser-friendly "run now": /run?key=YOUR_SCOUT_KEY
+      // Site-verification files (TikTok "Verify URL properties", Meta, Google): stored in D1 kv as verify:<file>
+      const verifyMatch = url.pathname.match(/^\/([A-Za-z0-9_.-]{3,80}\.(?:txt|html))$/);
+      if (request.method === "GET" && verifyMatch) {
+        const body = await kvGet(env, `verify:${verifyMatch[1]}`);
+        if (body !== null) return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+      }
       if (request.method === "GET" && url.pathname === "/terms") return termsPage();
       if (request.method === "GET" && url.pathname === "/privacy") return privacyPage();
       if (request.method === "GET" && url.pathname === "/tiktok/login") return tiktokLogin(request, env);

@@ -373,3 +373,13 @@ test("state memory needs the key and round-trips JSON", async () => {
   const got = await worker.fetch(new Request("https://s.dev/api/state/poster", { headers: h }), env);
   assert.deepEqual(await got.json(), { a: 1 });
 });
+
+test("serves site-verification files saved in the kv table", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const DB = kvDB();
+  DB.kv.set("verify:tiktokABC123.txt", "tiktok-developers-site-verification=ABC123");
+  const ok = await worker.fetch(new Request("https://s.dev/tiktokABC123.txt"), { DB });
+  assert.equal(await ok.text(), "tiktok-developers-site-verification=ABC123");
+  const missing = await worker.fetch(new Request("https://s.dev/nothere.txt"), { DB, DB_: 1 });
+  assert.equal(missing.status, 404);
+});
