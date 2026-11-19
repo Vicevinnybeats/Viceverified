@@ -132,6 +132,8 @@ jobs:
           df -h / | tail -1
           free -h | head -2
           docker logs --tail 80 omnivoice 2>&1 || echo "VoiceStudio was not started"
+          # VoiceStudio writes as root; let the cache step read its files
+          sudo chmod -R a+rX ~/voicestudio-data 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
