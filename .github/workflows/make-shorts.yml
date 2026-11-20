@@ -180,7 +180,7 @@ jobs:
           cache: pip
       - name: Install ffmpeg, yt-dlp and the caption font
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-dejavu-core > /dev/null)
           pip install -q -r requirements.txt yt-dlp
           mkdir -p maker/fonts
           curl -sSfL -o maker/fonts/Anton-Regular.ttf https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf || echo "font download failed - using a default bold font"
