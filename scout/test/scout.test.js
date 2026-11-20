@@ -438,3 +438,29 @@ test("big video is split, served whole, and deleted", async () => {
   assert.equal((await worker.fetch(new Request("https://s.dev/media/a.mp4"), env)).status, 404);
   assert.equal(env.MEDIA.m.size, 0);
 });
+
+test("Telegram setup finds the chat, saves it, and the daily ping uses it", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const { notify } = await import("../src/deliver.js");
+  const DB = kvDB();
+  const env = { DB, SCOUT_KEY: "k", TELEGRAM_BOT_TOKEN: "T" };
+  const sent = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, opts = {}) => {
+    url = String(url);
+    if (url.endsWith("/getUpdates")) return Response.json({ ok: true, result: [{ message: { chat: { id: 4242, first_name: "Vinny" } } }] });
+    if (url.endsWith("/sendMessage")) { sent.push(JSON.parse(opts.body)); return Response.json({ ok: true }); }
+    throw new Error(url);
+  };
+  try {
+    const denied = await worker.fetch(new Request("https://s.dev/telegram/setup?key=no"), env);
+    assert.equal(denied.status, 401);
+    const res = await worker.fetch(new Request("https://s.dev/telegram/setup?key=k"), env);
+    assert.match(await res.text(), /✅ Connected to Vinny/);
+    assert.equal(DB.kv.get("telegram:chat_id"), "4242");
+    await notify(env, "daily list");
+    assert.deepEqual(sent.map((m) => [m.chat_id, m.text.slice(0, 11)]), [["4242", "✅ Vicevmeri".slice(0, 0) || sent[0].text.slice(0, 11)], ["4242", "daily list"]]);
+  } finally {
+    globalThis.fetch = real;
+  }
+});

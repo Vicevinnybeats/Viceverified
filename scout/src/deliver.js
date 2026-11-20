@@ -28,6 +28,37 @@ export async function saveToGitHub(env, path, content, message) {
   return (await res.json()).content?.html_url;
 }
 
+export async function telegramChatId(env) {
+  if (env.TELEGRAM_CHAT_ID) return env.TELEGRAM_CHAT_ID;
+  if (!env.DB) return null;
+  const row = await env.DB.prepare("SELECT value FROM kv WHERE key = ?").bind("telegram:chat_id").first();
+  return row ? row.value : null;
+}
+
+export async function sendTelegram(env, chatId, text) {
+  return fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4000), disable_web_page_preview: true }),
+  });
+}
+
+/** /telegram/setup?key=SCOUT_KEY - finds your chat with the bot (send the bot any message first). */
+export async function telegramSetup(env) {
+  if (!env.TELEGRAM_BOT_TOKEN) return { ok: false, message: "Add the GitHub secret TELEGRAM_BOT_TOKEN, then run Actions → Deploy Scout." };
+  const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getUpdates`);
+  const data = await res.json().catch(() => ({}));
+  if (!data.ok) return { ok: false, message: `Telegram did not accept the bot token (${data.description || res.status}).` };
+  const msg = [...(data.result || [])].reverse().map((u) => u.message || u.channel_post).find((m) => m?.chat?.id);
+  if (!msg) return { ok: false, message: "No message found. Open your bot in Telegram, send it 'hi', then open this link again." };
+  const chatId = String(msg.chat.id);
+  await env.DB.prepare(
+    "INSERT INTO kv (key, value, updated) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated = excluded.updated",
+  ).bind("telegram:chat_id", chatId, new Date().toISOString()).run();
+  await sendTelegram(env, chatId, "✅ Viceverified is connected. You'll get the Scout's daily GTA 6 list and new Shorts here.");
+  return { ok: true, message: `Connected to ${msg.chat.first_name || msg.chat.title || "your chat"}. Check Telegram for a test message.` };
+}
+
 export async function notify(env, text) {
   const jobs = [];
   if (env.DISCORD_WEBHOOK_URL) {
@@ -39,14 +70,7 @@ export async function notify(env, text) {
       }),
     );
   }
-  if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
-    jobs.push(
-      fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: text.slice(0, 4000), disable_web_page_preview: true }),
-      }),
-    );
-  }
+  const chatId = env.TELEGRAM_BOT_TOKEN ? await telegramChatId(env).catch(() => null) : null;
+  if (chatId) jobs.push(sendTelegram(env, chatId, text));
   await Promise.allSettled(jobs);
 }

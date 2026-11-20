@@ -14,7 +14,7 @@
 import { scoreItems } from "./rank.js";
 import { buildReport, shortSummary } from "./report.js";
 import { collectAll } from "./sources.js";
-import { notify, saveToGitHub } from "./deliver.js";
+import { notify, saveToGitHub, telegramSetup } from "./deliver.js";
 import { dayString, sha1, titleKey } from "./util.js";
 import { speak, transcribe, writeScript } from "./maker-api.js";
 import { kvGet, kvPut, privacyPage, termsPage, tiktokCallback, tiktokLogin } from "./accounts.js";
@@ -129,7 +129,7 @@ export default {
     const url = new URL(request.url);
     // forgive small typos: trailing slash, double slashes, capital letters in page names
     const cleaned = url.pathname.replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
-    if (/^\/(tiktok\/(login|callback)|terms|privacy|run)$/i.test(cleaned)) url.pathname = cleaned.toLowerCase();
+    if (/^\/(tiktok\/(login|callback)|telegram\/setup|terms|privacy|run)$/i.test(cleaned)) url.pathname = cleaned.toLowerCase();
     else url.pathname = cleaned;
     try {
       if (request.method === "GET" && url.pathname === "/") {
@@ -169,6 +169,13 @@ export default {
           const meta = await putMedia(env, name, await request.arrayBuffer());
           return json({ ok: true, url: `${url.origin}/media/${name}`, ...meta });
         }
+      }
+      if (request.method === "GET" && url.pathname === "/telegram/setup") {
+        if (!env.SCOUT_KEY || url.searchParams.get("key") !== env.SCOUT_KEY) {
+          return new Response("Wrong or missing key. Use /telegram/setup?key=YOUR_SCOUT_KEY", { status: 401, headers: NO_CACHE });
+        }
+        const r = await telegramSetup(env);
+        return new Response(`${r.ok ? "✅" : "❌"} ${r.message}`, { headers: { "Content-Type": "text/plain; charset=utf-8", ...NO_CACHE } });
       }
       if (request.method === "GET" && url.pathname === "/terms") return termsPage();
       if (request.method === "GET" && url.pathname === "/privacy") return privacyPage();
