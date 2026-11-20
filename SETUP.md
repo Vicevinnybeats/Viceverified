@@ -83,15 +83,10 @@ New repository secret**. Every name in **CAPS** below is a secret.
    The token lasts 60 days. The poster renews it by itself every week and keeps the new one
    in `Drive/Viceverified/_poster/state.json`.
 
-**Cloudflare R2.** Instagram has to download the video from a link, so the poster parks it in
-R2 for a few minutes and then deletes it. R2's free tier is 10 GB.
-
-1. In the Cloudflare dashboard, go to **R2 → Create bucket** and name it `viceverified-media`.
-   Save that name as `R2_BUCKET`.
-2. In the bucket, open **Settings → Public access → R2.dev subdomain → Allow**. Save the
-   `https://pub-….r2.dev` link as `R2_PUBLIC_BASE_URL`.
-3. Under **R2 → Manage API tokens → Create token**, choose *Object Read & Write* on that
-   bucket. Save the two keys as `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`.
+**Video link:** Instagram downloads each video from a public link. Your Scout parks the video in
+Cloudflare **Workers KV** for a few minutes and deletes it right after posting. That's free and needs
+no credit card, and it's already set up. Cloudflare R2 (`R2_*` settings) is optional and only used
+if you add it.
 
 ## Step 4: Your Qwen 3 (captions), about 3 minutes
 
@@ -145,7 +140,7 @@ python -m poster post my-clip.mp4 --title "GTA 6 is finally here" --platforms yo
 | YouTube API | About 6 uploads per day |
 | Instagram API | 50 posts per 24 h |
 | TikTok API | A few posts per day per account (TikTok sets the limit) |
-| Cloudflare R2 | 10 GB (videos are deleted right after posting) |
+| Cloudflare Workers KV | 1 GB, 1,000 uploads/day (videos are deleted right after posting) |
 | Workers AI (Qwen) | 10,000 neurons per day. Captions use very little |
 
 ## Safety

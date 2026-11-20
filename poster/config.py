@@ -110,7 +110,8 @@ class Config:
 
     @property
     def has_instagram(self) -> bool:
-        return bool(self.ig_user_id and self.ig_access_token and self.has_r2)
+        # the video link comes from your Scout (free) or, if set up, Cloudflare R2
+        return bool(self.ig_user_id and self.ig_access_token and (self.has_r2 or self.scout_key))
 
     @property
     def has_r2(self) -> bool:

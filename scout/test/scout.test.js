@@ -395,3 +395,46 @@ test("small typos in page addresses still work", async () => {
   assert.equal(nf.status, 404);
   assert.match(JSON.stringify(await nf.json()), /tiktok\/login\?key=YOUR_SCOUT_KEY/);
 });
+
+// ---- media links for Instagram (KV, chunked) ----------------------------------------------
+import { CHUNK } from "../src/media.js";
+
+function fakeKV() {
+  const m = new Map();
+  return {
+    m,
+    async put(k, v) { m.set(k, typeof v === "string" ? v : new Uint8Array(v).slice()); },
+    async get(k, type) {
+      if (!m.has(k)) return null;
+      const v = m.get(k);
+      if (type === "json") return JSON.parse(v);
+      if (type === "arrayBuffer") return v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength);
+      return v;
+    },
+    async delete(k) { m.delete(k); },
+  };
+}
+
+test("big video is split, served whole, and deleted", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const env = { DB: kvDB(), MEDIA: fakeKV(), SCOUT_KEY: "k" };
+  const size = CHUNK * 2 + 123;
+  const body = new Uint8Array(size);
+  body[0] = 7; body[size - 1] = 9;
+  const denied = await worker.fetch(new Request("https://s.dev/api/media/a.mp4", { method: "PUT", body }), env);
+  assert.equal(denied.status, 401);
+  const up = await worker.fetch(new Request("https://s.dev/api/media/a.mp4", { method: "PUT", body, headers: { Authorization: "Bearer k" } }), env);
+  const info = await up.json();
+  assert.equal(info.parts, 3);
+  assert.equal(info.url, "https://s.dev/media/a.mp4");
+  const got = await worker.fetch(new Request("https://s.dev/media/a.mp4"), env);
+  assert.equal(got.headers.get("Content-Type"), "video/mp4");
+  assert.equal(got.headers.get("Content-Length"), String(size));
+  const bytes = new Uint8Array(await got.arrayBuffer());
+  assert.equal(bytes.length, size);
+  assert.equal(bytes[0], 7);
+  assert.equal(bytes[size - 1], 9);
+  await worker.fetch(new Request("https://s.dev/api/media/a.mp4", { method: "DELETE", headers: { Authorization: "Bearer k" } }), env);
+  assert.equal((await worker.fetch(new Request("https://s.dev/media/a.mp4"), env)).status, 404);
+  assert.equal(env.MEDIA.m.size, 0);
+});

@@ -18,6 +18,7 @@ import { notify, saveToGitHub } from "./deliver.js";
 import { dayString, sha1, titleKey } from "./util.js";
 import { speak, transcribe, writeScript } from "./maker-api.js";
 import { kvGet, kvPut, privacyPage, termsPage, tiktokCallback, tiktokLogin } from "./accounts.js";
+import { NAME_RE, deleteMedia, putMedia, serveMedia } from "./media.js";
 
 const REPORT_CRON = "13 6 * * *"; // the morning run also writes the daily report
 
@@ -156,6 +157,17 @@ export default {
           return new Response(request.method === "HEAD" ? null : body, {
             headers: { "Content-Type": "text/plain; charset=utf-8", "Content-Length": String(new TextEncoder().encode(body).length) },
           });
+        }
+      }
+      const mediaMatch = url.pathname.match(/^\/(api\/)?media\/([^/]+)$/);
+      if (mediaMatch && NAME_RE.test(mediaMatch[2])) {
+        const name = mediaMatch[2];
+        if (!mediaMatch[1] && (request.method === "GET" || request.method === "HEAD")) return serveMedia(env, name, request.method);
+        if (mediaMatch[1] && (request.method === "PUT" || request.method === "DELETE")) {
+          if (!authorized(request, env)) return json({ error: "missing or wrong SCOUT_KEY" }, 401);
+          if (request.method === "DELETE") return json({ deleted: await deleteMedia(env, name) });
+          const meta = await putMedia(env, name, await request.arrayBuffer());
+          return json({ ok: true, url: `${url.origin}/media/${name}`, ...meta });
         }
       }
       if (request.method === "GET" && url.pathname === "/terms") return termsPage();

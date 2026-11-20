@@ -1,7 +1,7 @@
 """Instagram Reels upload (free Instagram API, Business/Creator account).
 
-Instagram downloads the video from a public link, so the file is put in your
-Cloudflare R2 bucket for a few minutes and deleted right after posting."""
+Instagram downloads the video from a public link, so the file is parked on your
+Scout Worker (Workers KV, free) for a few minutes and deleted right after posting."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import time
 
 import requests
 
-from . import r2
+from . import media
 from .config import Config
 from .http import TIMEOUT, PostError, check
 from .meta import Meta, instagram_caption
@@ -23,7 +23,7 @@ def _base(cfg: Config) -> str:
 
 
 def post(cfg: Config, token: str, path: str, meta: Meta, sleep=time.sleep) -> dict:
-    key, public_url = r2.upload(cfg, path)
+    handle, public_url = media.upload(cfg, path)
     try:
         base = _base(cfg)
         resp = requests.post(f"{base}/{cfg.ig_user_id}/media", timeout=TIMEOUT, data={
@@ -60,7 +60,7 @@ def post(cfg: Config, token: str, path: str, meta: Meta, sleep=time.sleep) -> di
             pass
         return {"id": media_id, "url": url}
     finally:
-        r2.delete(cfg, key)
+        media.delete(cfg, handle)
 
 
 def refresh_token(cfg: Config, token: str) -> str:
