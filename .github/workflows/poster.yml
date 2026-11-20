@@ -3,8 +3,6 @@ name: Poster
 # Every 2 hours, check Google Drive Viceverified/Inbox and post new Shorts
 # to YouTube, Instagram and TikTok. You can also press "Run workflow" by hand.
 on:
-  schedule:
-    - cron: "17 */2 * * *"
   workflow_dispatch:
     inputs:
       dry_run:

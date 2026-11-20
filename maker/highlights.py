@@ -224,6 +224,7 @@ def run(cfg: Config, scout, tw, out_dir: str, n_clips: int = 3, n_vods: int = 1,
         used = {i["id"] for i in scout.items_with_status("used")} | {i["id"] for i in scout.items_with_status("skip")}
     except Exception:
         pass
+    used |= remembered_clips(scout)
     results = []
     cands = clip_candidates(cfg, tw, used, log)
     log(f"Clip candidates: {len(cands)} (most viewed first)")
@@ -313,9 +314,24 @@ def run(cfg: Config, scout, tw, out_dir: str, n_clips: int = 3, n_vods: int = 1,
     return results
 
 
+def remembered_clips(scout) -> set[str]:
+    try:
+        return set((scout.get_state("clips") or {}).get("used", []))
+    except Exception:
+        return set()
+
+
 def _mark(scout, url: str, status: str) -> None:
+    """Remember a clip as done - in the Scout's list and in its memory (clips straight from Twitch
+    are not always in the Scout's list, which is why the same clip was made twice before)."""
     try:
         scout.mark(item_id(url), status)
+    except Exception:
+        pass
+    try:
+        state = scout.get_state("clips") or {}
+        used = list(dict.fromkeys((state.get("used") or []) + [item_id(url)]))[-2000:]
+        scout.put_state("clips", {"used": used})
     except Exception:
         pass
 

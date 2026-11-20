@@ -28,7 +28,9 @@ export function buildWritePrompt(req) {
     `Article text: ${String(req.facts || req.title).slice(0, 3500)}\n\n` +
     `Return JSON exactly like:\n` +
     `{"hook": "on-screen hook, max 7 words", ` +
-    `"voiceover": "80-110 words. First sentence is the hook. Say the source name once. End with: Follow for daily GTA 6 news.", ` +
+    `"voiceover": "80-110 words. First sentence is the hook. If the article has secrets, money methods, ` +
+    `missions or tips, give the 2-4 most useful ones as a quick numbered list a player can act on right away. ` +
+    `Say the source name once. End with: Follow for more GTA 6 secrets.", ` +
     `"title": "max 70 chars", "caption": "1-2 sentences", "hashtags": ["#gta6", "... 8 total"], "safe": true}\n` +
     `Set "safe" to false if the story is about nudity, sex, slurs or real-world violence.\n/no_think`
   );

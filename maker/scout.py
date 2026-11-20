@@ -66,3 +66,14 @@ class Scout:
                               params={"caption": caption[:1000], "name": os.path.basename(path)},
                               headers={**self.h, "Content-Type": "video/mp4"})
         self._check(r, "Telegram video")
+
+    def get_state(self, name: str) -> dict:
+        r = requests.get(f"{self.url}/api/state/{name}", headers=self.h, timeout=TIMEOUT)
+        return self._check(r, "memory").json()
+
+    def put_state(self, name: str, data: dict) -> None:
+        import json as _json
+
+        r = requests.put(f"{self.url}/api/state/{name}", data=_json.dumps(data), timeout=TIMEOUT,
+                         headers={**self.h, "Content-Type": "application/json"})
+        self._check(r, "memory")

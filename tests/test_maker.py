@@ -43,10 +43,10 @@ class SubsTests(unittest.TestCase):
 
 
 class PickTests(unittest.TestCase):
-    def test_pick_prefers_new_info_and_filters_streamers(self):
+    def test_pick_prefers_guides_and_filters_streamers(self):
         items = [
-            {"id": "a", "kind": "news", "score": 70, "new_info": 0, "title": "old"},
-            {"id": "b", "kind": "news", "score": 66, "new_info": 1, "title": "fresh"},
+            {"id": "a", "kind": "news", "score": 70, "new_info": 1, "title": "drama", "category": "news"},
+            {"id": "b", "kind": "news", "score": 66, "new_info": 0, "title": "5 money tips", "category": "guide"},
             {"id": "c", "kind": "news", "score": 40, "new_info": 1, "title": "weak"},
             {"id": "d", "kind": "clip", "score": 90, "author": "xQc", "title": "x", "metric": 9},
             {"id": "e", "kind": "clip", "score": 80, "author": "Lirik", "title": "l", "metric": 5},

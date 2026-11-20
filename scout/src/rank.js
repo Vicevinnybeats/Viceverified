@@ -5,7 +5,8 @@ import { hoursAgo } from "./util.js";
 export const DEFAULT_MODEL = "@cf/qwen/qwen3.8-27b";
 
 const HOT_WORDS = [
-  ["leak", 18], ["trailer", 16], ["release", 12], ["launch", 12], ["delay", 16], ["price", 10],
+  ["secret", 18], ["easter egg", 18], ["money", 16], ["side mission", 18], ["guide", 14], ["tips", 14],
+  ["how to", 12], ["best", 8], ["leak", 18], ["trailer", 16], ["release", 12], ["launch", 12], ["delay", 16], ["price", 10],
   ["map", 10], ["rockstar", 8], ["update", 8], ["patch", 8], ["online", 8], ["record", 10],
   ["sales", 8], ["glitch", 10], ["secret", 10], ["easter egg", 12], ["lucia", 6], ["jason", 6],
   ["vice city", 6], ["pc", 8], ["dlc", 8], ["first look", 10], ["official", 8], ["confirmed", 10],
@@ -24,10 +25,11 @@ export function ruleScore(item, now = Date.now()) {
 }
 
 const SYSTEM =
-  "You are the scout for a GTA 6 YouTube Shorts / TikTok channel. You judge which finds would make " +
-  "a viral 30-60 second Short TODAY. Reward genuinely new info, official Rockstar news, leaks, big " +
-  "moments from streamers, funny or shocking clips. Punish rumours already old, clickbait, duplicates, " +
-  "and non-GTA-6 content. Reply with JSON only.";
+  "You are the scout for a GTA 6 YouTube Shorts / TikTok channel that gives players USEFUL info. " +
+  "Score highest: hidden secrets and easter eggs, fast ways to make money, the best side missions, " +
+  "practical tips and guides players can use right now (category guide). Then genuinely new official " +
+  "news. Punish drama, reactions, streamer gossip, rumours, clickbait, duplicates and non-GTA-6 content. " +
+  "Reply with JSON only.";
 
 export function buildPrompt(items) {
   const lines = items.map(
@@ -39,7 +41,7 @@ export function buildPrompt(items) {
   return (
     `Finds:\n${lines.join("\n")}\n\n` +
     `Return a JSON array, one object per find:\n` +
-    `[{"i": 0, "score": 0-100, "category": "news|leak|clip|meme|guide|other", "new_info": true|false, ` +
+    `[{"i": 0, "score": 0-100, "category": "guide|news|leak|clip|meme|other", "new_info": true|false, ` +
     `"angle": "Short idea, max 14 words"}]\n/no_think`
   );
 }

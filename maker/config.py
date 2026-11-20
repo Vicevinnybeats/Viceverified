@@ -24,8 +24,8 @@ class Config:
     voicestudio_accept: str = "KittenML/kitten-tts-mini-0.8"
     voice_speed: float = 1.08
 
-    news_per_run: int = 1
-    clips_per_run: int = 1
+    news_per_run: int = 2   # useful guide/secret/money Shorts
+    clips_per_run: int = 0  # stream clips off by default (set CLIPS_PER_RUN to turn on)
     min_news_score: int = 65
     min_clip_score: int = 55
     clip_streamers: list[str] = field(default_factory=list)  # empty = any streamer
@@ -48,8 +48,8 @@ class Config:
             voicestudio_install=_env("VOICESTUDIO_INSTALL", "KittenML/kitten-tts-mini-0.8"),
             voicestudio_accept=_env("VOICESTUDIO_ACCEPT_LICENSE", "KittenML/kitten-tts-mini-0.8"),
             voice_speed=float(_env("VOICE_SPEED", "1.08")),
-            news_per_run=int(_env("NEWS_PER_RUN", "1")),
-            clips_per_run=int(_env("CLIPS_PER_RUN", "1")),
+            news_per_run=int(_env("NEWS_PER_RUN", "2")),
+            clips_per_run=int(_env("CLIPS_PER_RUN", "0")),
             min_news_score=int(_env("MIN_NEWS_SCORE", "65")),
             min_clip_score=int(_env("MIN_CLIP_SCORE", "55")),
             clip_streamers=streamers,

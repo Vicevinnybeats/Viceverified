@@ -24,7 +24,8 @@ def slug(text: str, n: int = 40) -> str:
 
 def pick(items: list[dict], cfg: Config) -> tuple[list[dict], list[dict]]:
     news = [i for i in items if i.get("kind") != "clip" and i.get("score", 0) >= cfg.min_news_score]
-    news.sort(key=lambda i: (i.get("new_info", 0), i.get("score", 0)), reverse=True)
+    guide = lambda i: 1 if (i.get("category") or "") in ("guide", "secret", "tips") else 0  # noqa: E731
+    news.sort(key=lambda i: (guide(i), i.get("score", 0), i.get("new_info", 0)), reverse=True)
     clips = [i for i in items if i.get("kind") == "clip" and i.get("score", 0) >= cfg.min_clip_score]
     if cfg.clip_streamers:
         clips = [c for c in clips if (c.get("author") or "").lower() in cfg.clip_streamers]

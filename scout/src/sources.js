@@ -227,6 +227,10 @@ export async function collectAll(env, now = new Date()) {
   const jobs = {
     "news-sites": () => newsSites(),
     "bing-news": () => bingNews('"GTA 6" OR "GTA VI"'),
+    // useful guides: secrets, money, side missions
+    "guides-secrets": () => bingNews('"GTA 6" (secrets OR "easter egg" OR hidden OR "you missed")'),
+    "guides-money": () => bingNews('"GTA 6" ("make money" OR "money guide" OR "fast money" OR "best way to earn")'),
+    "guides-missions": () => bingNews('"GTA 6" ("side missions" OR "side quests" OR "best missions" OR "tips")'),
     reddit: () => reddit("GTA6", env.REDDIT_CLIENT_ID, env.REDDIT_CLIENT_SECRET),
   };
   // Google News blocks Cloudflare most of the time; only try it if you turn it on.

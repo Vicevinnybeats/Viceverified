@@ -18,11 +18,11 @@ on:
         type: boolean
         default: true
       news:
-        description: "How many news Shorts"
-        default: "1"
+        description: "How many guide/secret/money Shorts"
+        default: "2"
       clips:
         description: "How many stream-clip Shorts"
-        default: "1"
+        default: "0"
       dry_run:
         description: "Dry run (only list what it would make)"
         type: boolean
@@ -34,8 +34,8 @@ concurrency:
 
 env:
   SCOUT_KEY: ${{ secrets.SCOUT_KEY }}
-  NEWS_PER_RUN: ${{ inputs.news || vars.NEWS_PER_RUN || '1' }}
-  CLIPS_PER_RUN: ${{ inputs.clips || vars.CLIPS_PER_RUN || '1' }}
+  NEWS_PER_RUN: ${{ inputs.news || vars.NEWS_PER_RUN || '2' }}
+  CLIPS_PER_RUN: ${{ inputs.clips || vars.CLIPS_PER_RUN || '0' }}
   CLIP_STREAMERS: ${{ vars.CLIP_STREAMERS }}
 
 jobs:
