@@ -227,6 +227,12 @@ export default {
           return json({ new_items: newItems.length, errors: run.errors, ai_errors: run.aiErrors, report: report?.link });
         }
         if (url.pathname === "/api/write") return json(await writeScript(env, await request.json()));
+        if (url.pathname === "/api/notify") {
+          const { text } = await request.json();
+          if (!text) return json({ error: "text is required" }, 400);
+          await notify(env, String(text));
+          return json({ ok: true });
+        }
         if (url.pathname === "/api/tts") {
           const { text, speaker } = await request.json();
           if (!text) return json({ error: "text is required" }, 400);

@@ -24,6 +24,28 @@ from .config import Config
 from .scout import Scout
 
 
+def phone_text(results: list[dict]) -> str:
+    made = [r for r in results if r["status"] == "made"]
+    lines = [f"🎬 Viceverified: {len(made)} new Short{'s' if len(made) != 1 else ''}"]
+    for r in results:
+        icon = "✅" if r["status"] == "made" else ("⏭️" if r["status"].startswith("skipped") else "❌")
+        lines.append(f"{icon} {r['kind']}: {r.get('hook') or r['title']}")
+    run = os.environ.get("GITHUB_RUN_ID")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    if run and repo:
+        lines.append(f"\nDownload: https://github.com/{repo}/actions/runs/{run}")
+    return "\n".join(lines)
+
+
+def notify_phone(cfg: Config, results: list[dict]) -> None:
+    if not results:
+        return
+    try:
+        Scout(cfg).notify(phone_text(results))
+    except Exception as exc:  # a missed message never stops the Shorts
+        print(f"(phone message not sent: {exc})")
+
+
 def summary_md(results: list[dict]) -> str:
     lines = ["## 🎬 Short maker", ""]
     if not results:
@@ -97,6 +119,7 @@ def main(argv=None) -> int:
         with open(args.plan_file, encoding="utf-8") as f:
             planned = json.load(f)
         results = pipeline.render_plan(cfg, planned, args.folder)
+        notify_phone(cfg, results)
         md = summary_md(results)
         print("\n" + md)
         if os.environ.get("GITHUB_STEP_SUMMARY"):

@@ -47,3 +47,8 @@ class Scout:
     def mark(self, item_id: str, status: str) -> None:
         r = requests.post(f"{self.url}/api/items/{item_id}", json={"status": status}, headers=self.h, timeout=TIMEOUT)
         self._check(r, "mark")
+
+    def notify(self, text: str) -> None:
+        """Sends a message to your Telegram/Discord through the Scout."""
+        r = requests.post(f"{self.url}/api/notify", json={"text": text}, headers=self.h, timeout=TIMEOUT)
+        self._check(r, "notify")

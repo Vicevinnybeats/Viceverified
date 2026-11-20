@@ -243,6 +243,18 @@ class ClipFallbackTests(unittest.TestCase):
         self.assertEqual([r["status"] for r in results], ["skipped (not safe for Shorts)", "made"])
 
 
+class PhoneMessageTests(unittest.TestCase):
+    def test_phone_text_lists_shorts_and_link(self):
+        from maker.__main__ import phone_text
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "9", "GITHUB_REPOSITORY": "o/r"}):
+            text = phone_text([{"kind": "news", "status": "made", "title": "T", "hook": "Cast revealed"},
+                               {"kind": "clip", "status": "skipped (not safe for Shorts)", "title": "C"}])
+        self.assertIn("1 new Short\n", text)
+        self.assertIn("✅ news: Cast revealed", text)
+        self.assertIn("⏭️ clip: C", text)
+        self.assertIn("https://github.com/o/r/actions/runs/9", text)
+
+
 class VoiceSetupTests(unittest.TestCase):
     def test_installs_kitten_and_accepts_only_that_licence(self):
         cfg = Config(voicestudio_url="http://vs", voicestudio_key="k")
