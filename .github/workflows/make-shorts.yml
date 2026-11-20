@@ -82,7 +82,7 @@ jobs:
 
   voice:
     needs: plan
-    if: ${{ needs.plan.outputs.news != '0' && vars.USE_VOICESTUDIO != 'false' }}
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.news != '0' && vars.USE_VOICESTUDIO != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     continue-on-error: true
