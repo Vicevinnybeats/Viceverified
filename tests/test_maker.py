@@ -243,6 +243,30 @@ class ClipFallbackTests(unittest.TestCase):
         self.assertEqual([r["status"] for r in results], ["skipped (not safe for Shorts)", "made"])
 
 
+class NoAiScriptTests(unittest.TestCase):
+    def test_tip_script_from_article(self):
+        facts = ("Bigfoot has been spotted in GTA 6, and you can find him yourself. "
+                 "Head to the swamps north of Port Gellhorn after midnight. "
+                 "Rockstar has made many games over the years and this is one of them. "
+                 "Players who take a photo of the skunk ape earn a hidden trophy and a cash reward.")
+        s = pipeline.extract_script({"title": "Where to have a bona fide bigfoot sighting in GTA 6 - PC Gamer",
+                                     "author": "PC Gamer"}, facts)
+        self.assertIn("One. Bigfoot", s["voiceover"])
+        self.assertIn("north of Port Gellhorn", s["voiceover"])
+        self.assertNotIn("many games over the years", s["voiceover"])
+        self.assertLessEqual(len(s["hook"]), 48)
+        self.assertFalse(s["hook"].endswith("GT"))
+
+    def test_qwen_down_uses_article(self):
+        scout = mock.Mock()
+        scout.write.side_effect = RuntimeError("4006 neurons used up")
+        facts = "Head to the swamps north of Port Gellhorn at night. You can earn a cash reward for a photo of it."
+        with mock.patch("maker.sources.fetch_article", return_value=(facts, "https://img")):
+            s = pipeline.news_script(scout, {"title": "Bigfoot guide", "url": "u"}, log=lambda *_: None)
+        self.assertEqual(s["written_by"], "article (no AI)")
+        self.assertEqual(scout.write.call_count, 2)
+
+
 class PhoneMessageTests(unittest.TestCase):
     def test_phone_text_lists_shorts_and_link(self):
         from maker.__main__ import phone_text

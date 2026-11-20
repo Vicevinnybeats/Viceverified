@@ -23,8 +23,10 @@ def slug(text: str, n: int = 40) -> str:
 
 
 def pick(items: list[dict], cfg: Config) -> tuple[list[dict], list[dict]]:
-    news = [i for i in items if i.get("kind") != "clip" and i.get("score", 0) >= cfg.min_news_score]
     guide = lambda i: 1 if (i.get("category") or "") in ("guide", "secret", "tips") else 0  # noqa: E731
+    # useful guides may score a bit lower than headline news and still be picked
+    news = [i for i in items if i.get("kind") != "clip"
+            and i.get("score", 0) >= (cfg.min_news_score - 20 if guide(i) else cfg.min_news_score)]
     news.sort(key=lambda i: (guide(i), i.get("score", 0), i.get("new_info", 0)), reverse=True)
     clips = [i for i in items if i.get("kind") == "clip" and i.get("score", 0) >= cfg.min_clip_score]
     if cfg.clip_streamers:
@@ -93,20 +95,65 @@ class Outbox:
 
 
 def _words(scout: Scout, audio: str, text: str, length: float, log) -> list[dict]:
-    try:
-        words = scout.transcribe(audio).get("words") or []
-        if len(words) >= 3:
-            return words
-    except Exception as exc:
-        log(f"  captions: Whisper failed ({exc}), using even timing")
+    """Word timings: faster-whisper on this machine first (free), then the Scout's Whisper."""
+    from . import highlights
+
+    words = highlights.transcribe(scout, audio, log)[0].get("words") or []
+    if len(words) >= 3:
+        return words
+    log("  captions: no word timings, using even timing")
     return subs.even_timing(text, length)
 
 
-def news_script(scout: Scout, item: dict) -> dict:
-    """Reads the article and lets Qwen write the script. Adds the article picture link."""
+TIP_WORDS = ("where", "how", "find", "head", "go to", "drive", "unlock", "earn", "money", "cash", "reward",
+             "secret", "hidden", "mission", "location", "map", "near", "north", "south", "east", "west", "spawn",
+             "you can", "you'll", "make sure", "best", "tip")
+
+
+def _sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", text or ""))
+    return [p.strip() for p in parts if 40 <= len(p.strip()) <= 220]
+
+
+def extract_script(item: dict, facts: str) -> dict:
+    """No AI needed: the most useful sentences from the article, as a numbered tip script."""
+    sents = _sentences(facts)
+    scored = sorted(sents, key=lambda s_: -sum(w in s_.lower() for w in TIP_WORDS))
+    best = [s_ for s_ in scored if sum(w in s_.lower() for w in TIP_WORDS) > 0][:3] or sents[:3]
+    best = sorted(best, key=sents.index)  # keep the article's order
+    title = re.sub(r"\s+[-|].*$", "", item["title"]).strip()
+    words = {1: "One", 2: "Two", 3: "Three"}
+    body = " ".join(f"{words[n]}. {s_}" for n, s_ in enumerate(best, 1))
+    source = item.get("author") or "the article"
+    voice = f"{title}. Here is what you need to know, from {source}. {body} Follow for more GTA 6 secrets."
+    hook = title
+    if len(hook) > 48:  # short hook, cut at a word
+        hook = hook[:48].rsplit(" ", 1)[0].rstrip(",:;-")
+    return {"hook": hook, "voiceover": voice[:1100], "title": title[:95],
+            "caption": f"{title} - the key tips in 40 seconds.",
+            "hashtags": ["#gta6", "#gta6tips", "#gta6secrets", "#gaming", "#shorts"], "safe": True,
+            "written_by": "article (no AI)"}
+
+
+def news_script(scout: Scout, item: dict, log=print) -> dict:
+    """Reads the article; Qwen writes the script (retry once), else the no-AI tip script."""
     facts, image_url = sources.fetch_article(item["url"])
-    script = scout.write({"kind": "news", "title": item["title"], "author": item.get("author"),
-                          "angle": item.get("angle"), "facts": facts or item["title"]})
+    script = None
+    for attempt in (1, 2):
+        try:
+            script = scout.write({"kind": "news", "title": item["title"], "author": item.get("author"),
+                                  "angle": item.get("angle"), "facts": facts or item["title"]})
+            if script.get("voiceover") or script.get("safe") is False:
+                script["written_by"] = "qwen"
+                break
+        except Exception as exc:
+            log(f"  script attempt {attempt} failed: {str(exc)[:160]}")
+        script = None
+    if script is None:
+        if len(_sentences(facts)) < 2:
+            raise RuntimeError("no AI script and the article has too little text for a tip script")
+        script = extract_script(item, facts)
+        log("  script written from the article (no AI)")
     script["image_url"] = image_url
     return script
 
@@ -204,7 +251,7 @@ def plan(cfg: Config, log=print) -> dict:
     planned = {"news": [], "clips": [{"item": c} for c in clips], "clips_wanted": cfg.clips_per_run}
     for item in news:
         try:
-            script = news_script(scout, item)
+            script = news_script(scout, item, log)
         except Exception as exc:
             log(f"  script failed for {item['title']}: {exc}")
             continue
