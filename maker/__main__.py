@@ -37,13 +37,35 @@ def phone_text(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def video_caption(cfg: Config, result: dict) -> str:
+    meta = {}
+    try:
+        with open(os.path.join(cfg.out_dir, result["file"] + ".json"), encoding="utf-8") as f:
+            meta = json.load(f)
+    except (OSError, KeyError, ValueError):
+        pass
+    tags = " ".join(meta.get("hashtags") or [])
+    parts = [f"🎬 {result.get('hook') or meta.get('title') or result['title']}",
+             meta.get("youtube_title") or "", meta.get("description") or "", tags]
+    return "\n\n".join(p for p in parts if p)[:1000]
+
+
 def notify_phone(cfg: Config, results: list[dict]) -> None:
     if not results:
         return
+    scout = Scout(cfg)
     try:
-        Scout(cfg).notify(phone_text(results))
+        scout.notify(phone_text(results))
     except Exception as exc:  # a missed message never stops the Shorts
         print(f"(phone message not sent: {exc})")
+    for r in results:
+        if r["status"] != "made":
+            continue
+        try:
+            scout.send_video(os.path.join(cfg.out_dir, r["file"] + ".mp4"), video_caption(cfg, r))
+            print(f"Sent to Telegram: {r['file']}")
+        except Exception as exc:
+            print(f"(video not sent to Telegram: {exc})")
 
 
 def summary_md(results: list[dict]) -> str:

@@ -52,3 +52,13 @@ class Scout:
         """Sends a message to your Telegram/Discord through the Scout."""
         r = requests.post(f"{self.url}/api/notify", json={"text": text}, headers=self.h, timeout=TIMEOUT)
         self._check(r, "notify")
+
+    def send_video(self, path: str, caption: str) -> None:
+        """Sends a finished Short to your Telegram chat as a video."""
+        import os
+
+        with open(path, "rb") as f:
+            r = requests.post(f"{self.url}/api/telegram/video", data=f.read(), timeout=300,
+                              params={"caption": caption[:1000], "name": os.path.basename(path)},
+                              headers={**self.h, "Content-Type": "video/mp4"})
+        self._check(r, "Telegram video")

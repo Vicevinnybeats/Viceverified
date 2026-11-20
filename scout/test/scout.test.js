@@ -478,3 +478,23 @@ test("the timer asks GitHub to start the daily run", async () => {
   assert.equal(calls[0][0], "https://api.github.com/repos/o/r/dispatches");
   assert.deepEqual(calls[0][1], { event_type: "daily-run", client_payload: { report: true } });
 });
+
+test("a finished Short is sent to Telegram as a video", async () => {
+  const { default: worker } = await import("../src/index.js");
+  const DB = kvDB();
+  DB.kv.set("telegram:chat_id", "4242");
+  const env = { DB, SCOUT_KEY: "k", TELEGRAM_BOT_TOKEN: "T" };
+  let form;
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => { form = opts.body; assert.match(String(url), /\/botT\/sendVideo$/); return Response.json({ ok: true }); };
+  try {
+    const res = await worker.fetch(new Request("https://s.dev/api/telegram/video?caption=Cast%20revealed&name=a.mp4", {
+      method: "POST", headers: { Authorization: "Bearer k" }, body: new Uint8Array([1, 2, 3]) }), env);
+    assert.deepEqual(await res.json(), { ok: true });
+  } finally {
+    globalThis.fetch = real;
+  }
+  assert.equal(form.get("chat_id"), "4242");
+  assert.equal(form.get("caption"), "Cast revealed");
+  assert.equal(form.get("video").size, 3);
+});

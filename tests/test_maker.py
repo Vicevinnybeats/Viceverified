@@ -255,6 +255,25 @@ class PhoneMessageTests(unittest.TestCase):
         self.assertIn("https://github.com/o/r/actions/runs/9", text)
 
 
+class TelegramVideoTests(unittest.TestCase):
+    def test_made_shorts_are_sent_as_videos(self):
+        from maker import __main__ as cli
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Config(out_dir=tmp)
+            with open(os.path.join(tmp, "n1.json"), "w") as f:
+                json.dump({"youtube_title": "Cast revealed", "description": "Source: IGN", "hashtags": ["#gta6"]}, f)
+            scout = mock.Mock()
+            with mock.patch.object(cli, "Scout", return_value=scout):
+                cli.notify_phone(cfg, [{"kind": "news", "status": "made", "file": "n1", "title": "T", "hook": "Big news"},
+                                       {"kind": "clip", "status": "skipped (not safe for Shorts)", "title": "C"}])
+        scout.notify.assert_called_once()
+        path, caption = scout.send_video.call_args.args
+        self.assertTrue(path.endswith("n1.mp4"))
+        self.assertIn("🎬 Big news", caption)
+        self.assertIn("#gta6", caption)
+        self.assertEqual(scout.send_video.call_count, 1)
+
+
 class VoiceSetupTests(unittest.TestCase):
     def test_installs_kitten_and_accepts_only_that_licence(self):
         cfg = Config(voicestudio_url="http://vs", voicestudio_key="k")

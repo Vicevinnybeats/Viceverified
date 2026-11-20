@@ -74,3 +74,17 @@ export async function notify(env, text) {
   if (chatId) jobs.push(sendTelegram(env, chatId, text));
   await Promise.allSettled(jobs);
 }
+
+/** Sends a finished Short as a playable video to your Telegram chat (bots can send up to 50 MB). */
+export async function sendTelegramVideo(env, bytes, caption, filename = "short.mp4") {
+  const chatId = await telegramChatId(env);
+  if (!env.TELEGRAM_BOT_TOKEN || !chatId) return { ok: false, error: "Telegram is not connected" };
+  const form = new FormData();
+  form.append("chat_id", chatId);
+  form.append("caption", String(caption || "").slice(0, 1000));
+  form.append("supports_streaming", "true");
+  form.append("video", new Blob([bytes], { type: "video/mp4" }), filename);
+  const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendVideo`, { method: "POST", body: form });
+  const data = await res.json().catch(() => ({}));
+  return data.ok ? { ok: true } : { ok: false, error: data.description || `HTTP ${res.status}` };
+}

@@ -14,7 +14,7 @@
 import { scoreItems } from "./rank.js";
 import { buildReport, shortSummary } from "./report.js";
 import { collectAll } from "./sources.js";
-import { notify, saveToGitHub, telegramSetup } from "./deliver.js";
+import { notify, saveToGitHub, sendTelegramVideo, telegramSetup } from "./deliver.js";
 import { dayString, sha1, titleKey } from "./util.js";
 import { speak, transcribe, writeScript } from "./maker-api.js";
 import { kvGet, kvPut, privacyPage, termsPage, tiktokCallback, tiktokLogin } from "./accounts.js";
@@ -247,6 +247,14 @@ export default {
           return json({ new_items: newItems.length, errors: run.errors, ai_errors: run.aiErrors, report: report?.link });
         }
         if (url.pathname === "/api/write") return json(await writeScript(env, await request.json()));
+        if (url.pathname === "/api/telegram/video") {
+          const bytes = await request.arrayBuffer();
+          if (!bytes.byteLength) return json({ error: "send the video as the request body" }, 400);
+          if (bytes.byteLength > 49 * 1024 * 1024) return json({ error: "video too big for Telegram (max 50 MB)" }, 413);
+          const name = (url.searchParams.get("name") || "short.mp4").replace(/[^A-Za-z0-9_.-]/g, "-");
+          const r = await sendTelegramVideo(env, bytes, url.searchParams.get("caption") || "", name);
+          return json(r, r.ok ? 200 : 502);
+        }
         if (url.pathname === "/api/notify") {
           const { text } = await request.json();
           if (!text) return json({ error: "text is required" }, 400);
