@@ -8,9 +8,9 @@ class ChatSpikeTests(unittest.TestCase):
     def test_spike_is_3x_median_and_hype_counts(self):
         msgs = []
         for t in range(0, 600):  # 1 message per second = 10 per bucket
-            msgs.append({"t": float(t), "user": "u", "text": "hello"})
-        for k in range(60):  # +60 messages in the 300-310 s bucket -> 7x
-            msgs.append({"t": 300 + k / 10, "user": "u", "text": "KEKW NO WAY"})
+            msgs.append({"t": float(t), "user": f"u{t % 10}", "text": "hello"})
+        for k in range(60):  # +60 messages from 60 people in the 300-310 s bucket -> 7x
+            msgs.append({"t": 300 + k / 10, "user": f"fan{k}", "text": "KEKW NO WAY"})
         rows = chat.buckets(sorted(msgs, key=lambda m: m["t"]), 0, 600)
         found, median = chat.spikes(rows)
         self.assertEqual(median, 10)
@@ -84,6 +84,85 @@ class LookTests(unittest.TestCase):
         self.assertGreater(highlights.score_clip(50_000, {"jump": 10}, 4), highlights.score_clip(500, {"jump": 2}, 0))
 
 
+class CliperIdeasTests(unittest.TestCase):
+    """Ideas taken from gta6-clipper (MIT)."""
+
+    def test_one_spammer_is_not_a_spike(self):
+        msgs = [{"t": float(t), "user": f"u{t % 10}", "text": "hi"} for t in range(600)]
+        msgs += [{"t": 300 + k / 10, "user": "spambot", "text": "KEKW"} for k in range(90)]
+        found, _ = chat.spikes(chat.buckets(sorted(msgs, key=lambda m: m["t"]), 0, 600))
+        self.assertEqual(found, [])
+
+    def test_chat_paged_by_offset_and_deduped(self):
+        calls = []
+
+        def page(vid, off):
+            calls.append(off)
+            if off >= 100:
+                return []
+            return [{"node": {"id": f"c{off + i * 10}", "contentOffsetSeconds": off + i * 10,
+                              "commenter": {"displayName": f"P{i}"}, "message": {"fragments": [{"text": "W"}]}}}
+                    for i in range(4)]  # ~30 s per page
+        msgs = chat.download_chat("1", 0, 90, page=page)
+        self.assertEqual(calls[:3], [0, 30, 60])
+        self.assertEqual(len({m["t"] for m in msgs}), len(msgs))
+        self.assertTrue(all(0 <= m["t"] <= 90 for m in msgs))
+
+    def test_facecam_is_the_still_jittering_corner_face(self):
+        import random
+        random.seed(1)
+        W, H = 1920, 1080
+        samples = []
+        for i in range(16):
+            cam = (1650 + random.uniform(-3, 3), 820 + random.uniform(-3, 3), 90, 90)  # webcam, bottom right
+            npc = (200 + i * 90, 300, 80, 80)  # a game character walking across
+            frozen = (900, 100, 70, 70)  # a poster face that never moves
+            samples.append([cam, npc, frozen])
+        face = facecam.pick_facecam(samples, (W, H))
+        self.assertIsNotNone(face)
+        self.assertAlmostEqual(face[0], 1650, delta=6)
+        self.assertIsNone(facecam.pick_facecam([[(900, 100, 70, 70)]] * 16, (W, H)))
+
+    def test_yunet_model_is_shipped(self):
+        import hashlib
+        import os
+        with open(facecam.MODEL, "rb") as f:
+            self.assertEqual(hashlib.sha256(f.read()).hexdigest(),
+                             "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4")
+        self.assertTrue(os.path.exists(facecam.MODEL))
+
+    def test_only_streamers_who_allow_clipping(self):
+        rules = {"twitch:asmongold": {"rule": "allowed"}, "twitch:xqc": {"rule": "ask"}, "twitch:nope": {"rule": "no"}}
+        self.assertEqual(highlights.clip_rule("Asmongold", rules), "allowed")
+        self.assertEqual(highlights.clip_rule("someone", rules), "unknown")
+
+        class TW:
+            def game_id(self): return "g"
+            def user(self, login): return {"id": login}
+            def top_clips(self, broadcaster_id=None, game_id=None, hours=48, first=20):
+                mk = lambda n, v: {"url": f"https://clips.twitch.tv/{n}", "title": n, "broadcaster_name": n,  # noqa: E731
+                                   "language": "en", "view_count": v, "duration": 30, "game_id": "g"}
+                if game_id:
+                    return [mk("randomguy", 9999), mk("nope", 5000), mk("asmongold", 10)]
+                return [mk(broadcaster_id, 100)]
+
+        from maker.config import Config
+        cfg = Config.from_env()
+        orig = highlights.clip_rules
+        highlights.clip_rules = lambda: rules
+        try:
+            names = [c["streamer"] for c in highlights.clip_candidates(cfg, TW(), set(), log=lambda *a: None)]
+        finally:
+            highlights.clip_rules = orig
+        self.assertNotIn("randomguy", names)
+        self.assertNotIn("nope", names)
+        self.assertEqual(names[0], "asmongold")  # allowed streamers first
+        self.assertIn("xqc", names)
+
+    def test_rules_file_loads(self):
+        self.assertIn("twitch:asmongold", highlights.clip_rules())
+
+
 class RealDataBugTests(unittest.TestCase):
     """Bugs found on the first real Twitch run."""
 
@@ -104,10 +183,11 @@ class RealDataBugTests(unittest.TestCase):
         from maker.config import Config
         tw = mock.Mock()
         tw.game_id.return_value = "1"
+        tw.user.return_value = None
         tw.top_clips.return_value = [
             {"url": "u1", "title": "a", "broadcaster_name": "x", "view_count": 9, "duration": 20, "language": "ru"},
             {"url": "u2", "title": "b", "broadcaster_name": "y", "view_count": 5, "duration": 20, "language": "en"}]
-        cands = highlights.clip_candidates(Config(), tw, set(), log=lambda *_: None)
+        cands = highlights.clip_candidates(Config(clip_allow=("allowed", "ask", "unknown")), tw, set(), log=lambda *_: None)
         self.assertEqual([c["url"] for c in cands], ["u2"])
 
 

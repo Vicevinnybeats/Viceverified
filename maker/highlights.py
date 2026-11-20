@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -90,31 +91,62 @@ def score_clip(views: int, peak: dict, chat_ratio: float) -> float:
 
 
 # ---------------------------------------------------------------- picking -----------------
+RULES = os.path.join(os.path.dirname(__file__), "clip_rules.json")
+
+
+def clip_rules() -> dict:
+    try:
+        with open(RULES, encoding="utf-8") as f:
+            return json.load(f).get("streamers") or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def clip_rule(streamer: str, rules: dict | None = None) -> str:
+    """allowed | ask | unknown | no - may we clip this Twitch streamer? (maker/clip_rules.json)"""
+    rules = clip_rules() if rules is None else rules
+    key = "twitch:" + re.sub(r"\s+", "", (streamer or "").lower())
+    return (rules.get(key) or {}).get("rule") or "unknown"
+
+
 def clip_candidates(cfg: Config, tw, used: set[str], log=print, hours: int = 48) -> list[dict]:
-    out = []
-    targets = cfg.clip_streamers or []
-    lists = []
-    if targets:
-        for login in targets:
-            u = tw.user(login)
-            if not u:
-                log(f"  streamer not found on Twitch: {login}")
-                continue
-            lists.append(tw.top_clips(broadcaster_id=u["id"], hours=hours, first=10))
-    else:
-        gid = tw.game_id()
-        if gid:
-            lists.append(tw.top_clips(game_id=gid, hours=hours, first=30))
+    """Most-viewed English GTA 6 clips, only from streamers who allow clipping (CLIP_ALLOW).
+    Streamers you name yourself in CLIP_STREAMERS are always used, unless their rule is 'no'."""
+    out, lists = [], []
+    rules = clip_rules()
+    named = cfg.clip_streamers or []
+    gid = tw.game_id()
+    logins = list(named) or [k.split(":", 1)[1] for k, v in rules.items()
+                             if k.startswith("twitch:") and v.get("rule") in cfg.clip_allow]
+    for login in logins:
+        u = tw.user(login)
+        if not u:
+            log(f"  streamer not found on Twitch: {login}")
+            continue
+        clips = tw.top_clips(broadcaster_id=u["id"], hours=hours, first=20)
+        lists.append([c for c in clips if not gid or not c.get("game_id") or c.get("game_id") == gid])
+    if not named and gid:
+        lists.append(tw.top_clips(game_id=gid, hours=hours, first=50))
+    skipped: dict[str, str] = {}
+    seen = set()
     for clips in lists:
         for c in clips:
-            if item_id(c["url"]) in used or c.get("duration", 0) < 8:
+            if item_id(c["url"]) in used or c.get("duration", 0) < 8 or c["url"] in seen:
                 continue
             if cfg.clip_language and (c.get("language") or "").lower()[:2] != cfg.clip_language:
                 continue
+            rule = clip_rule(c["broadcaster_name"], rules)
+            is_named = (c["broadcaster_name"] or "").lower() in named
+            if rule == "no" or (not is_named and rule not in cfg.clip_allow):
+                skipped[c["broadcaster_name"]] = rule
+                continue
+            seen.add(c["url"])
             out.append({"url": c["url"], "title": c["title"], "streamer": c["broadcaster_name"], "language": c.get("language"),
-                        "views": c.get("view_count", 0), "duration": c.get("duration", 0),
+                        "views": c.get("view_count", 0), "duration": c.get("duration", 0), "rule": rule,
                         "video_id": c.get("video_id") or "", "vod_offset": c.get("vod_offset")})
-    out.sort(key=lambda c: c["views"], reverse=True)
+    if skipped:
+        log(f"  skipped (clipping not known to be allowed): {', '.join(sorted(skipped)[:15])}")
+    out.sort(key=lambda c: (c["rule"] != "allowed", -c["views"]))
     return out
 
 

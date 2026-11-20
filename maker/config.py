@@ -30,6 +30,7 @@ class Config:
     min_clip_score: int = 55
     clip_streamers: list[str] = field(default_factory=list)  # empty = any streamer
     clip_language: str = "en"  # only clips in this language ("" = any)
+    clip_allow: tuple = ("allowed", "ask")  # clip_rules.json rules we clip (add "unknown" to clip anyone)
     use_article_image: bool = True
 
     out_dir: str = "out"
@@ -54,6 +55,7 @@ class Config:
             min_clip_score=int(_env("MIN_CLIP_SCORE", "55")),
             clip_streamers=streamers,
             clip_language=_env("CLIP_LANGUAGE", "en").lower()[:2],
+            clip_allow=tuple(r.strip().lower() for r in _env("CLIP_ALLOW", "allowed,ask").split(",") if r.strip()),
             use_article_image=_env("USE_ARTICLE_IMAGE", "1") != "0",
             out_dir=_env("OUT_DIR", "out"),
             fonts_dir=_env("FONTS_DIR", "maker/fonts"),

@@ -1,0 +1,325 @@
+{
+ "_help": "Who allows clipping. rule = allowed | ask | unknown | no. Daily runs only clip allowed/ask streamers (change with the CLIP_ALLOW variable). Seeded from gta6-clipper (MIT, gitlab.com/nocodehack.io/gta6-clipper) - check each source yourself.",
+ "streamers": {
+  "twitch:xqc": {
+   "rule": "ask",
+   "note": "Clip away, just skip reposting a stream his editors already posted in the last 24 h.",
+   "source": "https://prsek.substack.com/p/the-editor-manifesto"
+  },
+  "twitch:kaicenat": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:asmongold": {
+   "rule": "allowed",
+   "note": "Said publicly he will not DMCA clip channels re-uploading his streams (2019 statement); credit the channel.",
+   "source": "https://kotaku.com/popular-wow-streamer-hires-youtubers-who-leeched-off-hi-1840377137"
+  },
+  "twitch:shroud": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:summit1g": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:sodapoppin": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:timthetatman": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:ninja": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:jynxzi": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:esfandtv": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:gotaga": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:ponce": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:domingo": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:locklear": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:kamet0": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:zerator": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:maghla": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:doigby": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:ibai": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:thegrefg": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:auronplay": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:rubius": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:elxokas": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:illojuan": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:knekro": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:westcol": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:quackity": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:juanguarnizo": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:rivers_gg": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:gaules": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:alanzoka": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:baiano": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:loud_coringa": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:cellbit": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:jazzghost": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:casimito": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:papaplatte": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:trymacs": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:montanablack88": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:gronkh": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:ungespielt": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:knossi": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:handofblood": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:eliasn97": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:tanzverbot": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:pietsmiet": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:reevtv": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:dariomocciatwitch": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:pow3rtv": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:mikeshowsha": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:tumblurr": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:cydonia": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:vegas": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:zanoxd": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:wtcn": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:jahrein": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:elraenn": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:unlostv": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:pqueen": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:mithrain": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:evonmoss": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:rraenee": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:pintipanda": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  },
+  "twitch:kendinemuzisyen": {
+   "rule": "unknown",
+   "note": "",
+   "source": ""
+  }
+ }
+}

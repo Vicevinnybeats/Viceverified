@@ -7,7 +7,7 @@
   │   captions           │            chat messages pop up at the peak
   │ via @streamer   [VV] │
   └──────────────────────┘
-No facecam found -> gameplay fills the whole 9:16 screen.
+No facecam found -> the whole game screen (nothing cut off, no blur) in the middle, hook above, captions below.
 Audio normalised to -14 LUFS (YouTube/TikTok loudness)."""
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ def clean(text: str) -> str:
 W, H = 1080, 1920
 TOP_H = 672            # 35 %
 BOTTOM_H = H - TOP_H   # 65 %
+GAME_Y = 560           # no facecam: top of the full game screen (16:9 -> 1080 x 608)
 LOGO = os.path.join(os.path.dirname(os.path.dirname(__file__)), "brand", "viceverified-icon-1024.png")
 YELLOW, WHITE = r"{\c&H00E5FF&}", r"{\c&HFFFFFF&}"
 
@@ -107,7 +108,7 @@ def wrap(text: str, width: int = 18) -> str:
 
 def build_ass(duration: float, words: list[dict], hook: str, streamer: str, peak: float,
               chat: list[dict], split: bool) -> str:
-    cap_y = TOP_H + 260 if split else int(H * 0.62)
+    cap_y = TOP_H + 260 if split else GAME_Y + 608 + 170
     lines = [STYLE_HEADER]
     if hook:  # in the first frames, gone after ~3 s
         lines.append(f"Dialogue: 4,0:00:00.00,{ts(min(3.2, duration))},Hook,,0,0,0,,{{\\fad(0,250)}}{wrap(hook).upper()}")
@@ -140,9 +141,12 @@ def render_clip(out: str, src: str, ass: str, start: float, length: float, peak:
             "[top][bottom]vstack=inputs=2[stack]",
         ]
     else:
-        gw = int(sh * 9 / 16) // 2 * 2
-        filters += [f"[0:v]crop={min(gw, sw)}:{sh}:{max(0, (sw - gw) // 2)}:0,scale={W}:{H}:flags=lanczos,"
-                    f"{_zoom(peak)}:s={W}x{H},setsar=1[stack]"]
+        # no facecam: show the WHOLE game screen (nothing cut off, no blur) on a dark background,
+        # hook above it, captions below it
+        gh = int(W * sh / sw) // 2 * 2
+        filters += [f"[0:v]scale={W}:{gh}:flags=lanczos,{_zoom(peak)}:s={W}x{gh},setsar=1[game]",
+                    f"color=c=0x0d0d12:s={W}x{H}:r=30:d={length:.2f}[bg]",
+                    f"[bg][game]overlay=0:{GAME_Y}:shortest=1[stack]"]
     last = "stack"
     inputs = ["-ss", f"{start:.2f}", "-t", f"{length:.2f}", "-i", src]
     if os.path.exists(LOGO):

@@ -40,37 +40,80 @@ def _frames(video: str, folder: str, count: int = 8) -> list[str]:
     return paths
 
 
-def detect(video: str) -> tuple[int, int, int, int] | None:
-    """Median face box over several frames -> facecam crop with the panel's aspect ratio."""
+MODEL = os.path.join(os.path.dirname(__file__), "models", "yunet.onnx")  # OpenCV Zoo YuNet, MIT
+
+
+def _yunet(cv2, w: int, h: int):
+    if not hasattr(cv2, "FaceDetectorYN") or not os.path.exists(MODEL):
+        return None
+    try:
+        return cv2.FaceDetectorYN.create(MODEL, "", (w, h), 0.6)
+    except Exception:
+        return None
+
+
+def pick_facecam(samples: list[list[tuple[float, float, float, float]]], size: tuple[int, int]):
+    """The real webcam = a face in the same spot in most frames that moves a little (a live person).
+    Faces in cutscenes/the game wander around; a paused video's face never moves; a full-screen
+    webcam face is too big. Idea from gta6-clipper (MIT). Returns a face box (x, y, w, h) or None."""
+    W, H = size
+    cells: dict[tuple[int, int], list] = {}
+    for faces in samples:
+        seen = set()
+        for x, y, w, h in faces:
+            c = (int((x + w / 2) / W * 8), int((y + h / 2) / H * 6))
+            if c not in seen:
+                seen.add(c)
+                cells.setdefault(c, []).append((float(x), float(y), float(w), float(h)))
+    best = None
+    for c, boxes in cells.items():
+        if len(boxes) < max(3, len(samples) * 0.4):
+            continue
+        cx = [b[0] + b[2] / 2 for b in boxes]
+        cy = [b[1] + b[3] / 2 for b in boxes]
+        jitter = (statistics.pstdev(cx) + statistics.pstdev(cy)) / 2
+        fw = statistics.median(b[2] for b in boxes)
+        if jitter < 0.5 or fw > W * 0.12 or fw < W * 0.02:  # frozen, full-screen cam, or too tiny to fill the panel
+            continue
+        score = len(boxes) + c[1] * 2 + (3 if c[0] in (0, 1, 6, 7) else 0)  # cams sit low and in corners
+        if not best or score > best[0]:
+            best = (score, boxes)
+    if not best:
+        return None
+    b = best[1]
+    return tuple(statistics.median(v[i] for v in b) for i in range(4))
+
+
+def detect(video: str, count: int = 16) -> tuple[int, int, int, int] | None:
+    """Facecam crop with the panel's aspect ratio, or None (then the whole game screen is shown)."""
     try:
         import cv2
     except ImportError:
         return None
-    if not hasattr(cv2, "CascadeClassifier"):  # OpenCV 5 moved it out; requirements pin OpenCV 4
-        return None
-    cascade = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
-    boxes, size = [], None
+    samples, size = [], None
     with tempfile.TemporaryDirectory() as tmp:
-        for p in _frames(video, tmp):
+        for p in _frames(video, tmp, count):
             img = cv2.imread(p)
             if img is None:
                 continue
-            size = img.shape[1], img.shape[0]
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=6, minSize=(36, 36))
-            if len(faces):
-                best = max(faces, key=lambda b: int(b[2]) * int(b[3]))
-                boxes.append(tuple(int(v) for v in best))  # plain ints (numpy ints break statistics)
-    if size is None or len(boxes) < 3:  # a face must be there in most frames, not a random match
+            H, W = img.shape[:2]
+            size = (W, H)
+            s = 960 / W
+            small = cv2.resize(img, (960, int(H * s)))
+            det = _yunet(cv2, 960, int(H * s))
+            faces = []
+            if det is not None:
+                _, fs = det.detect(small)
+                faces = [] if fs is None else [tuple(float(v) / s for v in f[:4]) for f in fs]
+            elif hasattr(cv2, "CascadeClassifier"):  # fallback: older Haar detector
+                casc = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                faces = [tuple(float(v) for v in b) for b in casc.detectMultiScale(gray, 1.1, 6, minSize=(36, 36))]
+            samples.append(faces)
+    if size is None:
         return None
-    fx = statistics.median(b[0] for b in boxes)
-    fy = statistics.median(b[1] for b in boxes)
-    fw = statistics.median(b[2] for b in boxes)
-    fh = statistics.median(b[3] for b in boxes)
-    # a face that wanders across the whole frame is not a fixed facecam
-    if statistics.pstdev([b[0] for b in boxes]) > fw * 1.5:
-        return None
-    return crop_around((fx, fy, fw, fh), size)
+    face = pick_facecam(samples, size)
+    return crop_around(face, size) if face else None
 
 
 def crop_around(face, size) -> tuple[int, int, int, int]:

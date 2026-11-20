@@ -37,6 +37,7 @@ env:
   NEWS_PER_RUN: ${{ inputs.news || vars.NEWS_PER_RUN || '2' }}
   CLIPS_PER_RUN: ${{ inputs.clips || vars.CLIPS_PER_RUN || '0' }}
   CLIP_STREAMERS: ${{ vars.CLIP_STREAMERS }}
+  CLIP_ALLOW: ${{ vars.CLIP_ALLOW }}
 
 jobs:
   scout:

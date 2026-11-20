@@ -1,0 +1,3 @@
+yunet.onnx - YuNet face detector from OpenCV Zoo (github.com/opencv/opencv_zoo), MIT licence.
+sha256 8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4
+Copied from gta6-clipper (gitlab.com/nocodehack.io/gta6-clipper, MIT licence, (c) 2026 nocodehack).

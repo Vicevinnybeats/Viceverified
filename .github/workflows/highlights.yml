@@ -26,6 +26,7 @@ jobs:
       TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
       TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
       CLIP_STREAMERS: ${{ inputs.streamers || vars.CLIP_STREAMERS }}
+      CLIP_ALLOW: ${{ vars.CLIP_ALLOW }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
