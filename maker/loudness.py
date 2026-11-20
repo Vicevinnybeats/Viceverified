@@ -20,7 +20,8 @@ def per_second(path: str) -> list[float]:
     if not per:
         return []
     last = max(per)
-    return [max(per.get(i, [-70.0])) for i in range(last + 1)]
+    # floor at -70: Twitch's muted (copyright) parts measure ~-140 and would fake huge "spikes"
+    return [max(-70.0, max(per.get(i, [-70.0]))) for i in range(last + 1)]
 
 
 def peak(levels: list[float], window: int = 120, jump_db: float = 8.0) -> dict:
@@ -29,7 +30,7 @@ def peak(levels: list[float], window: int = 120, jump_db: float = 8.0) -> dict:
         return {"t": 0, "lufs": None, "jump": 0.0, "spike": False}
     i = max(range(len(levels)), key=lambda k: levels[k])
     lo = max(0, i - window)
-    base = levels[lo:i] or levels
+    base = [v for v in levels[lo:i] if v > -60] or [v for v in levels if v > -60] or levels
     avg = sum(base) / len(base)
     jump = levels[i] - avg
     return {"t": i, "lufs": round(levels[i], 1), "jump": round(jump, 1), "spike": jump >= jump_db}

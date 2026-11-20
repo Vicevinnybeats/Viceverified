@@ -47,6 +47,36 @@ def hook_for(scout, clip: dict, transcript: str, log=print) -> tuple[dict, str]:
             "hashtags": ["#twitch", "#clips", "#gaming", "#shorts"], "safe": True}, "template"
 
 
+_WHISPER = None
+
+
+def transcribe(scout, audio: str, log=print) -> tuple[dict, str]:
+    """English transcript with word timings: faster-whisper on this machine (free), else the Scout's Whisper."""
+    global _WHISPER
+    try:
+        from faster_whisper import WhisperModel
+
+        if _WHISPER is None:
+            _WHISPER = WhisperModel(os.environ.get("WHISPER_MODEL", "base.en"), device="cpu", compute_type="int8")
+        segments, _info = _WHISPER.transcribe(audio, language="en", word_timestamps=True, vad_filter=True)
+        words, text = [], []
+        for seg in segments:
+            text.append(seg.text)
+            for w in seg.words or []:
+                if w.word.strip():
+                    words.append({"word": w.word.strip(), "start": float(w.start), "end": float(w.end)})
+        return {"text": " ".join(text).strip(), "words": words}, "faster-whisper"
+    except ImportError:
+        pass
+    except Exception as exc:
+        log(f"  local transcript failed ({exc}) - trying the Scout")
+    try:
+        return scout.transcribe(audio), "scout-whisper"
+    except Exception as exc:
+        log(f"  transcript failed ({exc}) - no captions for this one")
+        return {"text": "", "words": []}, "none"
+
+
 def score_clip(views: int, peak: dict, chat_ratio: float) -> float:
     """0-100: viewers (max 40) + loudness jump (max 30) + chat speed-up (max 30)."""
     return round(min(40, 8 * math.log10(max(views, 1) + 1)) + min(30, max(0.0, peak.get("jump") or 0) * 2)
@@ -73,7 +103,9 @@ def clip_candidates(cfg: Config, tw, used: set[str], log=print, hours: int = 48)
         for c in clips:
             if item_id(c["url"]) in used or c.get("duration", 0) < 8:
                 continue
-            out.append({"url": c["url"], "title": c["title"], "streamer": c["broadcaster_name"],
+            if cfg.clip_language and (c.get("language") or "").lower()[:2] != cfg.clip_language:
+                continue
+            out.append({"url": c["url"], "title": c["title"], "streamer": c["broadcaster_name"], "language": c.get("language"),
                         "views": c.get("view_count", 0), "duration": c.get("duration", 0),
                         "video_id": c.get("video_id") or "", "vod_offset": c.get("vod_offset")})
     out.sort(key=lambda c: c["views"], reverse=True)
@@ -104,10 +136,13 @@ def analyze_vod(tw, vod: dict, folder: str, avoid: list[float], window: int = 54
     found = []
     for i in range(len(levels)):
         lo = max(0, i - 120)
-        base = levels[lo:i] or [levels[i]]
+        base = [v for v in levels[lo:i] if v > -60]
+        if levels[i] <= -60 or len(base) < 30:  # muted part, or right after one
+            continue
         jump = levels[i] - sum(base) / len(base)
         if jump >= 8 and all(abs(start + i - f["t"]) > 90 for f in found) and all(abs(start + i - a) > 90 for a in avoid):
-            found.append({"t": start + i, "ratio": 0.0, "hype": 0, "chat_score": round(jump, 1), "db_jump": round(jump, 1)})
+            found.append({"t": start + i, "ratio": 0.0, "hype": 0, "chat_score": round(min(100, jump * 4), 1),
+                          "db_jump": round(jump, 1)})
     found.sort(key=lambda f: f["chat_score"], reverse=True)
     return {"vod": vod, "start": start, "end": end, "messages": [], "median": 0, "source": "loudness",
             "per_minute": loudness.per_minute(levels), "spikes": found[:5]}
@@ -142,11 +177,8 @@ def make_short(cfg: Config, scout, src: str, clip: dict, out_dir: str, chat_msgs
         small = os.path.join(tmp, "a.mp3")
         render.run(["ffmpeg", "-y", "-hide_banner", "-ss", f"{start:.2f}", "-t", f"{length:.2f}", "-i", src,
                     "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", small])
-        try:
-            t = scout.transcribe(small)
-            transcript, words = t.get("text", ""), t.get("words") or []
-        except Exception as exc:
-            log(f"  transcript failed ({exc}) - no captions for this one")
+        t, how = transcribe(scout, small, log)
+        transcript, words = t.get("text", ""), t.get("words") or []
         script, hook_src = hook_for(scout, clip, transcript, log)
         if script.get("safe") is False:
             return {"status": "skipped (not safe for Shorts)", "hook": script.get("hook")}
@@ -189,10 +221,13 @@ def run(cfg: Config, scout, tw, out_dir: str, n_clips: int = 3, n_vods: int = 1,
     results = []
     cands = clip_candidates(cfg, tw, used, log)
     log(f"Clip candidates: {len(cands)} (most viewed first)")
-    made_clips = 0
+    made_clips, fails_in_row = 0, 0
     with tempfile.TemporaryDirectory() as tmp:
         for c in cands:
             if made_clips >= n_clips:
+                break
+            if fails_in_row >= 4:
+                log("\n4 failures in a row - stopping clips here (see the errors above)")
                 break
             log(f"\n▶ clip {c['streamer']}: {c['title']} ({c['views']:,} views)")
             try:
@@ -216,6 +251,7 @@ def run(cfg: Config, scout, tw, out_dir: str, n_clips: int = 3, n_vods: int = 1,
                 res = {"status": f"failed: {str(exc)[:300]}"}
             res.update({"kind": "clip", "title": c["title"], "url": c["url"], "streamer": c["streamer"]})
             log(f"  → {res['status']}" + (f" · score {res['score']} · hook: {res['hook']}" if res.get("score") else ""))
+            fails_in_row = fails_in_row + 1 if res["status"].startswith("failed") else 0
             if res["status"] == "made":
                 made_clips += 1
                 _mark(scout, c["url"], "used")

@@ -59,7 +59,8 @@ def detect(video: str) -> tuple[int, int, int, int] | None:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=6, minSize=(36, 36))
             if len(faces):
-                boxes.append(max(faces, key=lambda b: b[2] * b[3]))
+                best = max(faces, key=lambda b: int(b[2]) * int(b[3]))
+                boxes.append(tuple(int(v) for v in best))  # plain ints (numpy ints break statistics)
     if size is None or len(boxes) < 3:  # a face must be there in most frames, not a random match
         return None
     fx = statistics.median(b[0] for b in boxes)

@@ -24,7 +24,7 @@ id = "bd350d5c64f94be3a968cbeb8c1889cb"
 [vars]
 QWEN_MODEL = "@cf/qwen/qwen3.8-27b"
 GITHUB_REPO = "vicevinnybeats/viceverified"
-AI_MAX_ITEMS = "30"
+AI_MAX_ITEMS = "15"
 
 [observability]
 enabled = true

@@ -84,5 +84,32 @@ class LookTests(unittest.TestCase):
         self.assertGreater(highlights.score_clip(50_000, {"jump": 10}, 4), highlights.score_clip(500, {"jump": 2}, 0))
 
 
+class RealDataBugTests(unittest.TestCase):
+    """Bugs found on the first real Twitch run."""
+
+    def test_numpy_face_boxes(self):
+        import numpy as np
+        import statistics
+        boxes = [tuple(int(v) for v in np.array([1600, 800, 120, 120], dtype=np.int32)) for _ in range(4)]
+        self.assertEqual(statistics.median(b[0] for b in boxes), 1600)
+        self.assertEqual(statistics.pstdev([b[0] for b in boxes]), 0)
+
+    def test_muted_parts_do_not_fake_spikes(self):
+        levels = [-25.0] * 150 + [-70.0] * 60 + [-24.0] * 100
+        pk = loudness.peak(levels)
+        self.assertLess(pk["jump"], 8)
+
+    def test_only_english_clips(self):
+        from unittest import mock
+        from maker.config import Config
+        tw = mock.Mock()
+        tw.game_id.return_value = "1"
+        tw.top_clips.return_value = [
+            {"url": "u1", "title": "a", "broadcaster_name": "x", "view_count": 9, "duration": 20, "language": "ru"},
+            {"url": "u2", "title": "b", "broadcaster_name": "y", "view_count": 5, "duration": 20, "language": "en"}]
+        cands = highlights.clip_candidates(Config(), tw, set(), log=lambda *_: None)
+        self.assertEqual([c["url"] for c in cands], ["u2"])
+
+
 if __name__ == "__main__":
     unittest.main()

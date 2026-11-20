@@ -29,6 +29,7 @@ class Config:
     min_news_score: int = 65
     min_clip_score: int = 55
     clip_streamers: list[str] = field(default_factory=list)  # empty = any streamer
+    clip_language: str = "en"  # only clips in this language ("" = any)
     use_article_image: bool = True
 
     out_dir: str = "out"
@@ -52,6 +53,7 @@ class Config:
             min_news_score=int(_env("MIN_NEWS_SCORE", "65")),
             min_clip_score=int(_env("MIN_CLIP_SCORE", "55")),
             clip_streamers=streamers,
+            clip_language=_env("CLIP_LANGUAGE", "en").lower()[:2],
             use_article_image=_env("USE_ARTICLE_IMAGE", "1") != "0",
             out_dir=_env("OUT_DIR", "out"),
             fonts_dir=_env("FONTS_DIR", "maker/fonts"),
