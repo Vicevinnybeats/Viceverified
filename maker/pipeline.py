@@ -142,29 +142,25 @@ def make_news(cfg: Config, scout: Scout, outbox: Outbox, item: dict, log=print,
 
 
 def make_clip(cfg: Config, scout: Scout, outbox: Outbox, item: dict, log=print) -> dict:
+    """Stream clip in the ViceVerified look: facecam top, gameplay bottom, no blur (see clipstyle.py)."""
+    from . import highlights
+
     with tempfile.TemporaryDirectory() as tmp:
-        clip = sources.twitch_clip(item["url"], tmp)
-        transcript, words = "", []
-        if render.has_audio(clip):
-            try:
-                t = scout.transcribe(render.small_audio(clip, os.path.join(tmp, "small.mp3")))
-                transcript, words = t.get("text", ""), t.get("words") or []
-            except Exception as exc:
-                log(f"  captions: Whisper failed ({exc}) - clip without captions")
-        script = scout.write({"kind": "clip", "title": item["title"], "author": item.get("author"),
-                              "metric": item.get("metric"), "transcript": transcript})
-        if not script.get("safe", True):
+        src = sources.twitch_clip(item["url"], tmp)
+        clip = {"url": item["url"], "title": item["title"], "streamer": item.get("author") or "streamer",
+                "views": item.get("metric") or 0, "kind": "clip"}
+        made = os.path.join(tmp, "made")
+        os.makedirs(made)
+        res = highlights.make_short(cfg, scout, src, clip, made, log=log)
+        if res["status"] != "made":
             scout.mark(item["id"], "skip")
-            return {"status": "skipped (not safe for Shorts)"}
-        ass = os.path.join(tmp, "subs.ass")
-        with open(ass, "w", encoding="utf-8") as f:
-            f.write(subs.build_ass(min(render.duration(clip), render.MAX_SECONDS), words,
-                                   hook=script.get("hook", ""), credit=f"twitch.tv/{item.get('author', '')}"))
-        out = render.clip_short(os.path.join(tmp, "short.mp4"), clip, ass, fonts_dir=cfg.fonts_dir)
-        name = f"{datetime.now(timezone.utc):%Y%m%d}-clip-{slug(item.get('author', '') + '-' + item['title'])}"
-        where = outbox.deliver(out, sidecar(script, item), name)
+            return res
+        with open(os.path.join(made, res["file"] + ".json"), encoding="utf-8") as f:
+            meta = json.load(f)
+        name = f"{datetime.now(timezone.utc):%Y%m%d}-clip-{slug(clip['streamer'] + '-' + item['title'])}"
+        where = outbox.deliver(os.path.join(made, res["file"] + ".mp4"), meta, name)
         scout.mark(item["id"], "used")
-        return {"status": "made", "file": name, "where": where, "hook": script.get("hook")}
+        return {**res, "file": name, "where": where}
 
 
 def run(cfg: Config, log=print, dry_run: bool = False) -> list[dict]:

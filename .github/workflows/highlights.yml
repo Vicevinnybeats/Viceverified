@@ -1,0 +1,49 @@
+name: Highlights
+
+# Real Twitch highlights in the new ViceVerified look (facecam top, gameplay bottom, no blur):
+#   - top clips per streamer (last 48 h, most viewed) - only the clip is downloaded
+#   - VOD segments found by chat spikes (or loudness spikes) - only that segment +/- 30 s is downloaded
+# Finished Shorts: "ready" artifact on the run page + sent to your Telegram.
+on:
+  workflow_dispatch:
+    inputs:
+      clips:
+        description: "How many top clips"
+        default: "3"
+      vods:
+        description: "How many VOD segments"
+        default: "1"
+      streamers:
+        description: "Twitch names, comma separated (empty = most-viewed GTA 6 clips)"
+        default: ""
+
+jobs:
+  highlights:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SCOUT_KEY: ${{ secrets.SCOUT_KEY }}
+      TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+      TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+      CLIP_STREAMERS: ${{ inputs.streamers || vars.CLIP_STREAMERS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install ffmpeg, yt-dlp, OpenCV and the caption font
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install -q -r requirements.txt yt-dlp
+          mkdir -p maker/fonts
+          curl -sSfL -o maker/fonts/Anton-Regular.ttf https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf || true
+      - name: Make highlights
+        run: python -m maker highlights --clips "${{ inputs.clips }}" --vods "${{ inputs.vods }}" --out ready --telegram
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ready-${{ github.run_number }}
+          path: ready/
+          retention-days: 14
+          if-no-files-found: ignore

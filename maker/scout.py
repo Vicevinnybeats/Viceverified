@@ -27,6 +27,10 @@ class Scout:
         r = requests.get(f"{self.url}/api/items", params={"hours": hours, "status": "new"}, timeout=TIMEOUT)
         return self._check(r, "items").json().get("items", [])
 
+    def items_with_status(self, status: str, hours: int = 24 * 30) -> list[dict]:
+        r = requests.get(f"{self.url}/api/items", params={"hours": hours, "status": status}, timeout=TIMEOUT)
+        return self._check(r, "items").json().get("items", [])
+
     def write(self, payload: dict) -> dict:
         r = requests.post(f"{self.url}/api/write", json=payload, headers=self.h, timeout=TIMEOUT)
         return self._check(r, "script").json()

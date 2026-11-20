@@ -1,0 +1,4 @@
+{
+  "_help": "Optional facecam position per Twitch streamer, as fractions of the video (0-1). Leave a streamer out to auto-detect. Use {\"facecam\": false} for streamers without a camera.",
+  "streamers": {}
+}

@@ -90,6 +90,11 @@ def main(argv=None) -> int:
     r.add_argument("--clips", type=int)
     sub.add_parser("voice-test")
     sub.add_parser("voice-setup")
+    hl = sub.add_parser("highlights", help="real Twitch highlights in the new look (clips + VOD segments)")
+    hl.add_argument("--clips", type=int, default=3)
+    hl.add_argument("--vods", type=int, default=1)
+    hl.add_argument("--out", default="ready")
+    hl.add_argument("--telegram", action="store_true", help="also send each finished Short to Telegram")
     pl = sub.add_parser("plan")
     pl.add_argument("plan_file")
     vo = sub.add_parser("voices")
@@ -114,6 +119,37 @@ def main(argv=None) -> int:
             return 1
         voice.setup_voicestudio(cfg)
         return 0
+
+    if args.cmd == "highlights":
+        from . import highlights
+        from .twitch import Twitch
+
+        scout = Scout(cfg)
+        results = highlights.run(cfg, scout, Twitch(), args.out, args.clips, args.vods)
+        lines = ["## 🎬 Highlights", ""]
+        for r in results:
+            icon = "✅" if r["status"] == "made" else ("⏭️" if r["status"].startswith("skipped") else "❌")
+            lines.append(f"- {icon} **{r['kind']}** · {r.get('streamer')} · [{r['title'][:70]}]({r['url']})")
+            if r["status"] == "made":
+                lines.append(f"  - score **{r['score']}** · hook: _{r['hook']}_ ({r['hook_source']}) · "
+                             f"{r['layout']} (facecam: {r['facecam']}) · {r['seconds']} s")
+                lines.append(f"  - why: {'; '.join(r['why'])}")
+                if r.get("candidates"):
+                    lines.append(f"  - VOD chat spikes: {r['candidates']}")
+            else:
+                lines.append(f"  - {r['status']}")
+            if args.telegram and r["status"] == "made":
+                try:
+                    cap = f"🎬 {r['hook']}\n\nscore {r['score']} - " + "; ".join(r["why"]) + f"\nvia @{r.get('streamer')}"
+                    scout.send_video(os.path.join(args.out, r["file"] + ".mp4"), cap)
+                except Exception as exc:
+                    lines.append(f"  - (not sent to Telegram: {exc})")
+        md = "\n".join(lines) + "\n"
+        print("\n" + md)
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+                f.write(md)
+        return 0 if any(r["status"] == "made" for r in results) else 1
 
     if args.cmd == "voices":
         with open(args.plan_file, encoding="utf-8") as f:
