@@ -35,8 +35,8 @@ def cmd_post(cfg: Config, args) -> int:
 
 def cmd_inbox(cfg: Config, args) -> int:
     if not cfg.has_google:
-        print("Google Drive is not set up (GOOGLE_CLIENT_ID / SECRET / REFRESH_TOKEN). See SETUP.md.")
-        return 1
+        print("Google Drive is not set up yet - nothing to do. (New Shorts are posted straight after they're made.)")
+        return 0
     summary = process_inbox(cfg, dry_run=args.dry_run, max_videos=args.max)
     failed = [s for s in summary if not s["done"]]
     return 1 if failed else 0

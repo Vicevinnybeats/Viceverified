@@ -106,6 +106,28 @@ export async function dailyReport(env, now = new Date(), runInfo) {
   return { day, count: items.length, link, md };
 }
 
+export async function startDailyRun(env, report) {
+  if (!env.GITHUB_TOKEN) {
+    const { run } = await collect(env);
+    if (report) await dailyReport(env, new Date(), run);
+    return;
+  }
+  const repo = env.GITHUB_REPO || "vicevinnybeats/viceverified";
+  const res = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "User-Agent": "viceverified-scout",
+    },
+    body: JSON.stringify({ event_type: "daily-run", client_payload: { report: Boolean(report) } }),
+  });
+  if (!res.ok) {
+    await notify(env, `⚠️ Viceverified could not start the daily run (GitHub HTTP ${res.status}). ` +
+      "The GitHub token may need renewing.").catch(() => {});
+  }
+}
+
 function authorized(request, env) {
   return env.SCOUT_KEY && request.headers.get("Authorization") === `Bearer ${env.SCOUT_KEY}`;
 }
@@ -116,13 +138,11 @@ const json = (data, status = 200) =>
   new Response(JSON.stringify(data, null, 2), { status, headers: { "Content-Type": "application/json", ...NO_CACHE } });
 
 export default {
+  // Cloudflare's timer is reliable, but a timed run only gets 10 ms of CPU on the free plan -
+  // too little to read all the news feeds. So the timer just tells GitHub "go": the GitHub
+  // "Daily run" calls /api/run (normal request, which works), then makes and posts the Shorts.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(
-      (async () => {
-        const { run } = await collect(env);
-        if (event.cron === REPORT_CRON) await dailyReport(env, new Date(), run);
-      })(),
-    );
+    ctx.waitUntil(startDailyRun(env, event.cron === REPORT_CRON));
   },
 
   async fetch(request, env) {

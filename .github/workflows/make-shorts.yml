@@ -1,17 +1,22 @@
 name: Make Shorts
 
-# 30 minutes after each Scout run: turn the best finds into vertical Shorts.
+# The daily run. Started twice a day (06:13 / 18:13 UTC) by your Scout Worker's timer
+# (GitHub's own timer skips runs), or by hand with "Run workflow".
+#   scout  - the Scout searches for new GTA 6 news and clips (morning run also saves the list)
 #   plan   - pick the Scout's best finds, Qwen writes the scripts
 #   voice  - VoiceStudio (https://github.com/debpalash/VoiceStudio) records the voiceovers
 #   render - builds the videos; if a VoiceStudio voiceover is missing, Cloudflare's voice is used
 # Finished Shorts go to Google Drive Viceverified/Inbox (if Google is set up) and are
 # always downloadable from the run page under "Artifacts".
 on:
-  schedule:
-    - cron: "43 6 * * *"
-    - cron: "43 18 * * *"
+  repository_dispatch:
+    types: [daily-run]
   workflow_dispatch:
     inputs:
+      scout:
+        description: "Let the Scout search for new finds first"
+        type: boolean
+        default: true
       news:
         description: "How many news Shorts"
         default: "1"
@@ -34,7 +39,23 @@ env:
   CLIP_STREAMERS: ${{ vars.CLIP_STREAMERS }}
 
 jobs:
+  scout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ github.event_name == 'repository_dispatch' || inputs.scout }}
+    steps:
+      - name: Scout searches for new GTA 6 news and clips
+        env:
+          REPORT: ${{ github.event.client_payload.report && '1' || '' }}
+        run: |
+          curl -fsS --retry 2 --max-time 300 -X POST \
+            -H "Authorization: Bearer $SCOUT_KEY" \
+            "https://viceverified-scout.vicevinnybeats.workers.dev/api/run${REPORT:+?report=1}"
+          echo
+
   plan:
+    needs: scout
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:

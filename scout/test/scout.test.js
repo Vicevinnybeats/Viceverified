@@ -464,3 +464,17 @@ test("Telegram setup finds the chat, saves it, and the daily ping uses it", asyn
     globalThis.fetch = real;
   }
 });
+
+test("the timer asks GitHub to start the daily run", async () => {
+  const { startDailyRun } = await import("../src/index.js");
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => { calls.push([String(url), JSON.parse(opts.body)]); return new Response(null, { status: 204 }); };
+  try {
+    await startDailyRun({ GITHUB_TOKEN: "t", GITHUB_REPO: "o/r" }, true);
+  } finally {
+    globalThis.fetch = real;
+  }
+  assert.equal(calls[0][0], "https://api.github.com/repos/o/r/dispatches");
+  assert.deepEqual(calls[0][1], { event_type: "daily-run", client_payload: { report: true } });
+});
