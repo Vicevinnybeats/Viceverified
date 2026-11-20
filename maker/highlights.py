@@ -58,7 +58,13 @@ def transcribe(scout, audio: str, log=print) -> tuple[dict, str]:
 
         if _WHISPER is None:
             _WHISPER = WhisperModel(os.environ.get("WHISPER_MODEL", "base.en"), device="cpu", compute_type="int8")
-        segments, _info = _WHISPER.transcribe(audio, language="en", word_timestamps=True, vad_filter=True)
+        # decode with ffmpeg ourselves (16 kHz mono float) - avoids PyAV version clashes
+        import numpy as np
+
+        pcm = subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-i", audio, "-f", "f32le", "-ac", "1",
+                              "-ar", "16000", "-"], capture_output=True, check=True).stdout
+        samples = np.frombuffer(pcm, dtype=np.float32)
+        segments, _info = _WHISPER.transcribe(samples, language="en", word_timestamps=True, vad_filter=True)
         words, text = [], []
         for seg in segments:
             text.append(seg.text)
