@@ -56,7 +56,9 @@ jobs:
 
   plan:
     needs: scout
-    if: ${{ always() }}
+    # Daily automatic Shorts are paused (only the Scout runs). Turn back on: repo variable AUTO_SHORTS = true.
+    # "Run workflow" by hand still makes Shorts.
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.AUTO_SHORTS == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -166,7 +168,7 @@ jobs:
 
   render:
     needs: [plan, voice]
-    if: ${{ always() && needs.plan.result == 'success' && !inputs.dry_run }}
+    if: ${{ !cancelled() && needs.plan.result == 'success' && !inputs.dry_run }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
