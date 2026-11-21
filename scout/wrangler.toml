@@ -4,7 +4,8 @@ compatibility_date = "2026-11-01"
 
 # 06:13 UTC = collect + daily report, 18:13 UTC = collect only
 [triggers]
-crons = ["13 6 * * *", "13 18 * * *"]
+# Paused by request: no timers. Turn back on with: crons = ["13 6 * * *", "13 18 * * *"]
+crons = []
 
 # Qwen on Workers AI (free daily allowance, no API key needed inside the Worker)
 [ai]

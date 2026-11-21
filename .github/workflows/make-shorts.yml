@@ -9,8 +9,9 @@ name: Make Shorts
 # Finished Shorts go to Google Drive Viceverified/Inbox (if Google is set up) and are
 # always downloadable from the run page under "Artifacts".
 on:
-  repository_dispatch:
-    types: [daily-run]
+  # Paused: the daily start from the Scout is switched off. To turn back on, add again:
+  #   repository_dispatch:
+  #     types: [daily-run]
   workflow_dispatch:
     inputs:
       scout:
